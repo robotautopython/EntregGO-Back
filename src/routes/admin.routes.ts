@@ -1,0 +1,40 @@
+import { Router } from 'express';
+
+import {
+  approveUserController,
+  blockUserController,
+  listUsersController,
+  unblockUserController,
+} from '../controllers/admin.controller.js';
+import { authenticate, requireActiveUser, requireRoles } from '../middlewares/auth.middleware.js';
+import { validateRequest } from '../middlewares/validate-request.js';
+import { asyncHandler } from '../utils/async-handler.js';
+import { adminListUsersQuerySchema, userIdParamsSchema } from '../validators/admin.validators.js';
+
+export const adminRouter = Router();
+
+adminRouter.use(authenticate, requireActiveUser, requireRoles('admin'));
+
+adminRouter.get(
+  '/users',
+  validateRequest({ query: adminListUsersQuerySchema }),
+  asyncHandler(listUsersController),
+);
+
+adminRouter.patch(
+  '/users/:id/approve',
+  validateRequest({ params: userIdParamsSchema }),
+  asyncHandler(approveUserController),
+);
+
+adminRouter.patch(
+  '/users/:id/block',
+  validateRequest({ params: userIdParamsSchema }),
+  asyncHandler(blockUserController),
+);
+
+adminRouter.patch(
+  '/users/:id/unblock',
+  validateRequest({ params: userIdParamsSchema }),
+  asyncHandler(unblockUserController),
+);
