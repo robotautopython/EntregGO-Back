@@ -224,3 +224,12 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Status:** documentado; backend sem mudanca de codigo neste ciclo
 
 **Validacoes:** Frontend `npm run typecheck`, `npm run lint`, `npm test --if-present` e `npm run build` passaram. Backend, tocado apenas em documentacao, tambem passou em `npm run typecheck`, `npm test`, `npm run lint` e `npm run build`. Browser local em `http://127.0.0.1:3002/admin/insights` abriu sem o texto antigo do placeholder; sem sessao admin real disponivel no navegador, a verificacao visual ficou limitada ao shell/guard de auth.
+
+## 2026-05-15 - SMOKE POS-DEPLOY ADMIN INSIGHTS APROVADO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O frontend em producao `https://entreggo.vercel.app`, publicado no commit `93d0175`, foi validado contra o backend em producao `https://entreggoback.vercel.app`, publicado no commit `b34f30d`. A checagem publica confirmou que o bundle do frontend contem a chamada a `/api/admin/insights` e que o backend sem token responde `401 AUTH_REQUIRED`, comprovando rota existente e protegida. Em sessao real de admin ativo no navegador do operador, `GET https://entreggoback.vercel.app/api/admin/insights` retornou `200` e a tela `/admin/insights` renderizou `Insights da central`, cards de usuarios, lojas ativas, motoboys ativos e dados do contrato sem o placeholder antigo.
+**Agentes utilizados:** Camisa10, PromptRefiner, ImpactValidator, TestEngineer, Documentador
+**Status:** fechado com ressalvas operacionais
+
+**Validacoes:** Smoke autenticado de sucesso aprovado por evidencia visual do operador, sem colar tokens, cookies ou headers sensiveis. A tela nao exibiu `Area reservada`, `Metricas de operacao entram depois...`, `Evitar dashboard fake...` ou `ComingSoonPanel`. A ausencia de PII fora do contrato foi validada no codigo e na area visivel do smoke: o painel usa apenas contagens, `id`, `role`, `status`, `created_at` e `generated_at`. Smoke de vazio nao executado porque nao havia dataset seguro naturalmente zerado em producao e nao foram criados dados artificiais. Smoke de falha de API foi observado no incidente real de deploy stale anterior, com UI exibindo `Falha ao carregar` e `Tentar novamente`; bloqueio reversivel via DevTools nao foi executado pelo Codex porque a sessao logada estava apenas no navegador do operador. Regressao basica parcial: `/admin` ja havia sido aberto na sessao de producao, e a navegacao admin permaneceu visivel; acoes destrutivas e logout nao foram executados.
