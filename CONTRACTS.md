@@ -179,6 +179,55 @@ Para `role=motoboy`, `profile` contem apenas `id`, `user_id`, `full_name`, `is_o
 
 Campos de Storage e documentos (`logo_url`, `bike_photo_url`, `license_photo_url`) nao fazem parte deste contrato.
 
+## Entregas M-04A
+
+### `POST /api/deliveries`
+
+Cria uma solicitacao de entrega para a loja vinculada ao usuario autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=logista` e `status=ativo`.
+
+Body:
+
+```json
+{
+  "destinationAddress": "Endereco de destino",
+  "notes": "Observacao opcional"
+}
+```
+
+Regras:
+
+- `store_id` sempre e derivado do perfil `stores` do usuario autenticado; nunca vem do body.
+- `destinationAddress` e obrigatorio, com trim e limite de tamanho.
+- `notes` e opcional; quando ausente ou vazio, e gravado como `null`.
+- A entrega nasce com `status=aguardando`, `courier_id=null` e `expires_at` definido pelo default do banco.
+- Escritas client-side em `delivery_requests` seguem negadas por RLS/grants; o backend usa service role.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "store_id": "uuid",
+    "destination_address": "Endereco de destino",
+    "notes": "Observacao opcional",
+    "status": "aguardando",
+    "courier_id": null,
+    "created_at": "2026-05-15T20:00:00.000Z",
+    "expires_at": "2026-05-15T20:01:00.000Z",
+    "accepted_at": null,
+    "collected_at": null,
+    "in_transit_at": null,
+    "delivered_at": null,
+    "updated_at": "2026-05-15T20:00:00.000Z"
+  },
+  "message": "Solicitacao de entrega criada"
+}
+```
+
+Fora deste contrato: pool de motoboys, aceite concorrente, `accept`, mudanca de status, listagem/historico, realtime, push, cron de expiracao, dashboards, pagamentos e frontend.
+
 ## Admin ainda ausente no backend
 
 O frontend admin F7 Track A ja possui estrutura visual para detalhes, documentos, entregas, pagamentos e notas, mas estes contratos ainda nao existem no backend:

@@ -8,13 +8,13 @@
 
 ## Em Andamento
 
-- [ ] Planejar migracao segura do frontend para versao corrigida do Next.js antes de qualquer PWA/push real.
 - [ ] Manter dashboards, pagamentos, documentos e historico de entregas como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
 - [ ] Rodar validadores de seguranca antes de auth real, uploads, policies RLS finais e push.
 - [ ] Rodar validadores de performance antes de aceite concorrente real, cron, queries de dashboard e realtime.
+- [ ] Especificar proximo marco de entregas sem antecipar aceite concorrente, pool de motoboys, realtime, push, cron ou historico.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
@@ -48,11 +48,14 @@
 - [x] Backend `GET /api/admin/insights` disponivel com agregados minimos sem PII, e frontend `/admin/insights` integrado ao contrato real sem mocks.
 - [x] Smoke pos-deploy final de `/admin/insights` aprovado em producao: frontend `93d0175` e backend `b34f30d`, chamada autenticada retornando `200` e UI renderizando dados reais do contrato.
 - [x] Favicon de producao corrigido no frontend `587af96`, removendo o `404` estatico observado no smoke.
+- [x] Fechamento local da migracao frontend para Next.js `15.5.18`/React `19.2.6` validado sem mudanca funcional no backend.
+- [x] M-04A implementado localmente no backend: `POST /api/deliveries` para loja ativa, testes de autorizacao/validacao e migration de hardening RLS para `delivery_requests`.
+- [x] M-04A validado pos-migration no Supabase alvo: smoke Auth/RLS real confirmou criacao de entrega por `logista` ativo, negacoes por role/status, RLS de `delivery_requests` e cleanup completo.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, dashboards complexos ou historico admin de entregas.
-- Frontend ainda possui vulnerabilidade residual em `next@14.2.35`/PostCSS interno; correcao exige migracao major do Next e deve ser tratada em ciclo proprio.
+- Projeto ainda nao possui uploads, push real, realtime real, aceite concorrente, cron, dashboards complexos ou historico admin de entregas.
+- Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
 - Abas admin de documentos, entregas, pagamentos e notas seguem bloqueadas por falta de backend, schema/auditoria ou validadores especializados.

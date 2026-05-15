@@ -1,5 +1,13 @@
 export type UserRole = 'admin' | 'logista' | 'motoboy';
 export type UserStatus = 'pendente' | 'ativo' | 'bloqueado';
+export type DeliveryStatus =
+  | 'aguardando'
+  | 'aceita'
+  | 'coletada'
+  | 'em_transito'
+  | 'entregue'
+  | 'expirada'
+  | 'cancelada';
 
 export interface DomainUser {
   id: string;
@@ -33,6 +41,22 @@ export interface CourierProfile {
   license_photo_url: string | null;
   is_online: boolean;
   created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryRequest {
+  id: string;
+  store_id: string;
+  destination_address: string;
+  notes: string | null;
+  status: DeliveryStatus;
+  courier_id: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  collected_at: string | null;
+  in_transit_at: string | null;
+  delivered_at: string | null;
   updated_at: string;
 }
 

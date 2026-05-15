@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -26,6 +27,8 @@ const domainUserSelect =
 const storeSelect = 'id,user_id,name,owner_name,address,logo_url,description,created_at,updated_at';
 const courierSelect =
   'id,user_id,full_name,bike_photo_url,license_photo_url,is_online,created_at,updated_at';
+const deliveryRequestSelect =
+  'id,store_id,destination_address,notes,status,courier_id,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at';
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -143,8 +146,54 @@ const createCourier = async (service, userId, stamp, isOnline = false) => {
   return data;
 };
 
-const createAuthenticatedClient = async (service, email, password) => {
-  const sessionResult = await service.auth.signInWithPassword({ email, password });
+const createDeliveryRequest = async (service, storeId, stamp, overrides = {}) => {
+  const id = randomUUID();
+  const { error } = await service
+    .from('delivery_requests')
+    .insert({
+      id,
+      store_id: storeId,
+      destination_address: `Endereco destino ficticio RLS ${stamp}`,
+      notes: 'Registro temporario de smoke RLS',
+      ...overrides,
+    });
+
+  assert(
+    !error,
+    `Delivery request creation failed: ${error?.code ?? 'no-code'} ${error?.message ?? 'no-message'}`,
+  );
+  return { id };
+};
+
+const assignDeliveryRequest = async (service, deliveryRequestId, courierId) => {
+  const { error } = await service
+    .from('delivery_requests')
+    .update({
+      status: 'aceita',
+      courier_id: courierId,
+      accepted_at: new Date().toISOString(),
+    })
+    .eq('id', deliveryRequestId);
+
+  assert(
+    !error,
+    `Delivery request assignment failed: ${error?.code ?? 'no-code'} ${error?.message ?? 'no-message'}`,
+  );
+  return { id: deliveryRequestId };
+};
+
+const createAuthenticatedClient = async (email, password) => {
+  const authClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    },
+  );
+  const sessionResult = await authClient.auth.signInWithPassword({ email, password });
   assert(
     !sessionResult.error && sessionResult.data.session?.access_token,
     `Auth session creation failed: ${sessionResult.error?.status ?? 'unknown'} ${
@@ -244,6 +293,15 @@ const restRequest = async ({
   return { response, body };
 };
 
+const assertNoSupabaseError = (result, name) => {
+  assert(
+    !result?.error,
+    `${name} failed: ${result?.error?.code ?? 'no-code'} ${
+      result?.error?.message ?? 'no-message'
+    }`,
+  );
+};
+
 const restSelect = async (accessToken, tableName, select) => {
   const query = `?select=${encodeURIComponent(select)}`;
   const { response, body } = await restRequest({ tableName, accessToken, query });
@@ -275,37 +333,58 @@ const cleanup = async (service, created) => {
   if (created.domainUserIds.length > 0) {
     await cleanupStep('delivery_requests', async () => {
       if (created.storeIds.length > 0) {
-        await service.from('delivery_requests').delete().in('store_id', created.storeIds);
+        assertNoSupabaseError(
+          await service.from('delivery_requests').delete().in('store_id', created.storeIds),
+          'delivery_requests_by_store cleanup',
+        );
       }
 
       if (created.courierIds.length > 0) {
-        await service.from('delivery_requests').delete().in('courier_id', created.courierIds);
+        assertNoSupabaseError(
+          await service.from('delivery_requests').delete().in('courier_id', created.courierIds),
+          'delivery_requests_by_courier cleanup',
+        );
       }
     });
     await cleanupStep('push_subscriptions', async () => {
-      await service.from('push_subscriptions').delete().in('user_id', created.domainUserIds);
+      assertNoSupabaseError(
+        await service.from('push_subscriptions').delete().in('user_id', created.domainUserIds),
+        'push_subscriptions cleanup',
+      );
     });
     await cleanupStep('payments', async () => {
-      await service.from('payments').delete().in('user_id', created.domainUserIds);
+      assertNoSupabaseError(
+        await service.from('payments').delete().in('user_id', created.domainUserIds),
+        'payments cleanup',
+      );
     });
     await cleanupStep('stores', async () => {
       if (created.storeIds.length > 0) {
-        await service.from('stores').delete().in('id', created.storeIds);
+        assertNoSupabaseError(
+          await service.from('stores').delete().in('id', created.storeIds),
+          'stores cleanup',
+        );
       }
     });
     await cleanupStep('couriers', async () => {
       if (created.courierIds.length > 0) {
-        await service.from('couriers').delete().in('id', created.courierIds);
+        assertNoSupabaseError(
+          await service.from('couriers').delete().in('id', created.courierIds),
+          'couriers cleanup',
+        );
       }
     });
     await cleanupStep('users', async () => {
-      await service.from('users').delete().in('id', created.domainUserIds);
+      assertNoSupabaseError(
+        await service.from('users').delete().in('id', created.domainUserIds),
+        'users cleanup',
+      );
     });
   }
 
   for (const authUserId of created.authUserIds) {
     await cleanupStep('auth_user', async () => {
-      await service.auth.admin.deleteUser(authUserId);
+      assertNoSupabaseError(await service.auth.admin.deleteUser(authUserId), 'auth_user cleanup');
     });
   }
 
@@ -385,14 +464,14 @@ const main = async () => {
       adminUser.id,
     );
     created.domainUserIds.push(courierUser.id);
-    const courierProfile = await createCourier(service, courierUser.id, stamp, false);
+    const courierProfile = await createCourier(service, courierUser.id, stamp, true);
     created.courierIds.push(courierProfile.id);
 
     logStep('creating real Supabase Auth sessions');
-    const adminSession = await createAuthenticatedClient(service, adminAuth.email, password);
-    const storeSession = await createAuthenticatedClient(service, storeAuth.email, password);
-    const pendingSession = await createAuthenticatedClient(service, pendingAuth.email, password);
-    const courierSession = await createAuthenticatedClient(service, courierAuth.email, password);
+    const adminSession = await createAuthenticatedClient(adminAuth.email, password);
+    const storeSession = await createAuthenticatedClient(storeAuth.email, password);
+    const pendingSession = await createAuthenticatedClient(pendingAuth.email, password);
+    const courierSession = await createAuthenticatedClient(courierAuth.email, password);
 
     logStep('starting local API from built backend');
     apiServer = await startApi();
@@ -405,6 +484,55 @@ const main = async () => {
     );
     assert(meBody?.success === true, '/api/auth/me did not return success');
     assert(meBody.data?.user?.id === storeUser.id, '/api/auth/me returned wrong domain user');
+
+    await expectApiStatus(apiServer.baseUrl, '/api/deliveries', pendingSession.accessToken, 403, {
+      method: 'POST',
+      body: JSON.stringify({
+        destinationAddress: 'Rua Ficticia 456, Bairro Teste',
+      }),
+    });
+    await expectApiStatus(apiServer.baseUrl, '/api/deliveries', courierSession.accessToken, 403, {
+      method: 'POST',
+      body: JSON.stringify({
+        destinationAddress: 'Rua Ficticia 456, Bairro Teste',
+      }),
+    });
+    await expectApiStatus(apiServer.baseUrl, '/api/deliveries', storeSession.accessToken, 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        destinationAddress: '',
+      }),
+    });
+
+    const deliveryBody = await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries',
+      storeSession.accessToken,
+      201,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          destinationAddress: 'Rua Ficticia 456, Bairro Teste',
+          notes: 'Entrega temporaria criada pelo smoke',
+        }),
+      },
+    );
+    assert(deliveryBody?.success === true, 'Delivery creation did not return success');
+    assert(
+      deliveryBody.data?.store_id === storeProfile.id,
+      'Delivery creation did not derive store_id from the authenticated store',
+    );
+    assert(deliveryBody.data?.status === 'aguardando', 'Delivery creation status is not waiting');
+    assert(deliveryBody.data?.courier_id === null, 'Delivery creation assigned a courier early');
+
+    const assignableDelivery = await createDeliveryRequest(service, storeProfile.id, stamp, {
+      notes: 'Entrega temporaria atribuida para validar RLS',
+    });
+    const assignedDelivery = await assignDeliveryRequest(
+      service,
+      assignableDelivery.id,
+      courierProfile.id,
+    );
 
     await expectApiStatus(
       apiServer.baseUrl,
@@ -525,6 +653,14 @@ const main = async () => {
       },
       courierSession.accessToken,
     );
+    await assertDeniedRestInsert(
+      'delivery_requests',
+      {
+        store_id: storeProfile.id,
+        destination_address: 'Endereco Proibido',
+      },
+      storeSession.accessToken,
+    );
 
     const visibleStores = await restSelect(storeSession.accessToken, 'stores', storeSelect);
     assert(
@@ -536,6 +672,28 @@ const main = async () => {
     assert(
       visibleCouriers.length === 1 && visibleCouriers[0].id === courierProfile.id,
       'Courier user saw non-own couriers',
+    );
+
+    const visibleStoreDeliveries = await restSelect(
+      storeSession.accessToken,
+      'delivery_requests',
+      deliveryRequestSelect,
+    );
+    assert(
+      visibleStoreDeliveries.some((delivery) => delivery.id === deliveryBody.data.id) &&
+        visibleStoreDeliveries.some((delivery) => delivery.id === assignedDelivery.id),
+      'Store user did not see own delivery requests',
+    );
+
+    const visibleCourierDeliveries = await restSelect(
+      courierSession.accessToken,
+      'delivery_requests',
+      deliveryRequestSelect,
+    );
+    assert(
+      visibleCourierDeliveries.length === 1 &&
+        visibleCourierDeliveries[0].id === assignedDelivery.id,
+      'Courier saw unassigned or non-own delivery requests',
     );
 
     logStep('all checks passed');

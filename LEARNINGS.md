@@ -67,3 +67,32 @@ O ciclo de `/admin/insights` mostrou dois modos de deploy stale diferentes: prim
 ## 2026-05-15 - Corrigir asset estatico deve continuar pequeno
 
 O `favicon.ico` faltante era uma correcao operacional de baixo risco. O aprendizado foi manter o escopo no arquivo estatico necessario, usando o asset oficial existente, sem abrir ciclo de PWA, manifest, redesign ou dependencia nova. Esse padrao reduz ruido de observabilidade sem deslocar o roadmap sensivel de auth, uploads, pagamentos e performance.
+
+## 2026-05-15 - Fechamento de dependencia frontend precisa atualizar status cross-stack
+
+A migracao do frontend para Next 15 nao altera contratos backend, mas muda o estado operacional do projeto inteiro: o bloqueio antigo de `next@14.2.35` deixa de ser verdadeiro e o risco real passa a ser o residual moderado de PostCSS embutido no Next 15. O padrao correto e atualizar tambem o STATUS/LOG do backend quando ele serve como painel cross-stack, deixando claro que nao houve mudanca funcional no backend.
+
+## 2026-05-15 - Criacao de entrega nao deve liberar descoberta por RLS
+
+Ao abrir `POST /api/deliveries`, a tentacao natural seria aproveitar a policy M-01 que deixava motoboys ativos/online verem entregas `aguardando`. Para a M-04A isso seria antecipar pool, realtime e aceite concorrente sem os validadores certos. O padrao correto e criar a entrega via backend/service role e endurecer RLS no mesmo patch: cliente autenticado e ativo le apenas entregas da propria loja ou ja atribuidas ao proprio motoboy.
+
+## 2026-05-15 - Smoke com service role precisa isolar clientes de auth
+
+**Tipo:** Armadilha
+**Fase:** fundacao/auth-operacao
+**Contexto:** Validacao pos-migration da M-04A com usuarios Auth reais ficticios e chamadas RLS autenticadas.
+
+### O que aconteceu
+O smoke usava o mesmo client Supabase criado com service role para gerar sessoes reais via `signInWithPassword`. Depois das sessoes, escritas diretas auxiliares em `delivery_requests` passaram a falhar com `42501 permission denied for table delivery_requests`. O cleanup tambem precisava validar `result.error`, nao apenas excecoes.
+
+### Por que aconteceu
+Clients Supabase que fazem login de usuario nao devem ser reutilizados como client administrativo no mesmo fluxo. Alem disso, chamadas Supabase podem retornar erro no objeto de resposta sem lancar excecao.
+
+### Como foi resolvido
+O smoke passou a criar um client anon/publishable novo para cada login temporario, preservando o client service-role para criacao e limpeza administrativa. O cleanup agora checa explicitamente `result.error` em cada grupo e a varredura residual confirmou zero recursos ficticios.
+
+### O que fazer diferente da proxima vez
+Em smokes com service role, separar client administrativo, client anon e clients autenticados por usuario. Todo cleanup deve validar erro retornado pela SDK e fazer uma varredura final por prefixo ficticio antes de marcar o ciclo como fechado.
+
+### Impacto no projeto
+A validacao M-04A ficou mais confiavel e o risco de deixar dados temporarios remotos foi reduzido. A correcao ficou restrita ao script de smoke e nao alterou contrato, migration ou regra de negocio.

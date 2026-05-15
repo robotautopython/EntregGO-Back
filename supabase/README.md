@@ -10,12 +10,17 @@ This folder contains versioned SQL migrations for the EntregGO Supabase/PostgreS
   - Enables RLS on all domain tables.
   - Grants client-side `select` only where the initial RLS policies allow it.
   - Leaves all writes to backend/service-role flows until the real auth/register cycle is implemented.
+- `migrations/20260515210000_m04a_delivery_request_rls_hardening.sql`
+  - Replaces the initial `delivery_requests` select policy.
+  - Restricts client-side delivery reads to the active owner store or the active already assigned courier.
+  - Keeps `insert`, `update` and `delete` unavailable to anon/authenticated clients.
+  - Leaves courier discovery, Realtime, push, cron and concurrent acceptance for future scoped milestones.
 
 ## Security notes
 
 - `public.users` links to Supabase Auth through `auth_id`; passwords are not stored in the domain schema.
 - `payments` has RLS enabled but no anon/authenticated policy. It is backend/service-role only in M-01.
-- `delivery_requests` exposes unassigned waiting requests only to active online couriers to support future Realtime usage.
+- `delivery_requests` no longer exposes unassigned waiting requests to couriers in M-04A; reads are limited to active owner stores and active assigned couriers. Future discovery/Realtime must add a new policy only after Security/Performance validation.
 - Policies are intentionally conservative and must be revalidated during the real auth/cadastro cycle.
 - Do not commit real Supabase keys, VAPID private keys, JWT secrets, service role keys, or seed data with PII.
 

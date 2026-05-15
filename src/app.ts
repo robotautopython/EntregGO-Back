@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { getAllowedCorsOrigins } from './config/cors.js';
 import { adminRouter } from './routes/admin.routes.js';
 import { authRouter } from './routes/auth.routes.js';
+import { deliveryRouter } from './routes/delivery.routes.js';
 import { isApiError, toApiErrorPayload } from './utils/errors.js';
 
 dotenv.config({ path: '.env.local', quiet: true });
@@ -51,6 +52,7 @@ app.get('/api/health', (_request: Request, response: Response) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/deliveries', deliveryRouter);
 
 app.use((_request: Request, response: Response) => {
   response.status(404).json({

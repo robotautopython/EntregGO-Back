@@ -242,3 +242,44 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Status:** fechado em producao
 
 **Validacoes:** Frontend `npm run typecheck`, `npm run lint`, `npm test --if-present` e `npm run build` passaram. Localmente, `/favicon.ico` retornou `200` e `/admin/insights` retornou `200`. Apos deploy do frontend `587af96`, `https://entreggo.vercel.app/favicon.ico` passou de `404` para `200`, e `/admin/insights` permaneceu acessivel.
+
+## 2026-05-15 - FECHAMENTO LOCAL DA MIGRACAO FRONTEND NEXT 15
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O backend permaneceu sem mudanca funcional enquanto o ciclo frontend foi fechado localmente em Next.js `15.5.18`, `eslint-config-next@15.5.18`, React `19.2.6` e React DOM `19.2.6`. A documentacao cross-stack foi atualizada para remover o bloqueio antigo de `next@14.2.35` e registrar o residual real de auditoria em Next/PostCSS interno.
+**Agentes utilizados:** Camisa10, PromptRefiner, ImpactValidator, SecurityValidator, TestEngineer, FinalValidator, Documentador
+**Status:** documentado; backend sem mudanca de codigo
+
+**Validacoes:** No frontend, `npm run typecheck`, `npm run lint`, `npm test --if-present` e `npm run build` passaram. `npm audit --json` falhou com 2 vulnerabilidades moderadas (`next` via `postcss` interno), sem altas ou criticas. Smoke local aprovou `/`, `/login`, `/registro`, `/aguardando-aprovacao`, `/admin/insights`, `/admin/usuarios`, `/admin/lojas` e `/admin/motoboys` com `200`, alem de `/admin` e `/admin/aprovacoes` com redirects esperados.
+
+## 2026-05-15 - PROMOCAO MANUAL DE ADMIN VIA SQL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O usuario `elismar@entreggo.com` foi promovido a `admin` ativo via SQL direto no projeto Supabase de producao, executado pelo operador `admin@entreggo.com` no SQL Editor com a service role do painel. O usuario havia sido criado pelo painel `auth.users` do Supabase, sem passar pelo endpoint `POST /api/auth/register/*`, e por isso nao tinha linha-espelho em `public.users`. A diagnostica seguiu o fluxo cetico: primeiro `SELECT` em `public.users` retornou zero, depois `SELECT` em `auth.users` confirmou a existencia da conta (`auth_id` real `1739e1a6-9506-42f2-b26b-6b3b1e3a8265`, com `c` truncado na screenshot inicial corrigido para `6`). Em seguida, `INSERT` aditivo em `public.users` criou a linha com `role='admin'`, `status='ativo'`, `approved_at=now()` e `approved_by` apontando para o `public.users.id` de `admin@entreggo.com` (`3264363d-14e6-49b2-8e87-c826a163437d`). O `RETURNING` confirmou: `id=063a9f7b-d36b-4631-aba7-42d2...`, `auth_id=1739e1a6-9506-42f2-b26b-6b3b1e3a8265`, `email=elismar@entreggo.com`, `role=admin`, `status=ativo`, `approved_at=2026-05-15 19:50:41.5133+00`, `approved_by=3264363d-14e6-49b2-8e87-c826a163437d`. Nenhum codigo backend, frontend, migration ou contrato foi alterado.
+**Arquivos modificados:** `LOG.md` (EntregGO-Back)
+**Agentes utilizados:** Camisa10, Cetico, Documentador
+**Status:** fechado em producao
+
+**Validacoes:** `SELECT` previo em `public.users` por `auth_id` e `email` retornou zero linhas, confirmando ausencia. `SELECT` em `auth.users` confirmou conta verificada (`email_verified=true`, `created_at=2026-05-15 19:12:49`). `SELECT` top-10 em `public.users` por `created_at DESC` confirmou que `admin@entreggo.com` existe com `role=admin/status=ativo` e forneceu o `id` correto para `approved_by`. Apos o `INSERT`, o `RETURNING` exibiu a linha criada com todos os campos esperados. Recomendacoes operacionais para `elismar@entreggo.com`: fazer logout e novo login para a sessao JWT refletir o `role=admin`, e o painel `/admin/usuarios` ja deve listar a conta com a contagem real. Promocao de role continua sendo operacao exclusiva via service role no painel Supabase porque o backend M-02A so manipula `status` via endpoints (`approve/block/unblock`), por design.
+
+## 2026-05-15 - M-04A BACKEND DELIVERY CREATE E RLS HARDENING
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada a primeira fatia do fluxo de entregas no backend: `POST /api/deliveries` permite que apenas `logista` ativo crie uma solicitacao de entrega usando o perfil `stores` derivado do usuario autenticado. O body aceita `destinationAddress` e `notes`, e o backend grava `delivery_requests` via service role com `status=aguardando`, `courier_id=null` e `expires_at` pelo default do banco. No mesmo patch, foi criada a migration M-04A para substituir a policy inicial de `delivery_requests`, removendo a leitura client-side de entregas aguardando por motoboys ativos/online e mantendo leitura apenas para a loja ativa dona ou motoboy ativo ja atribuido.
+**Arquivos criados:** `src/routes/delivery.routes.ts`, `src/controllers/delivery.controller.ts`, `src/services/delivery.service.ts`, `src/validators/delivery.validators.ts`, `tests/delivery-routes.spec.ts`, `supabase/migrations/20260515210000_m04a_delivery_request_rls_hardening.sql`
+**Arquivos modificados:** `src/app.ts`, `src/types/domain.ts`, `scripts/smoke-auth-rls.mjs`, `CONTRACTS.md`, `README.md`, `supabase/README.md`, `STATUS.md`, `LOG.md`, `LEARNINGS.md`
+**Agentes utilizados:** Camisa10, Cetico, ImpactValidator, SecurityValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado localmente; smoke remoto pendente de aplicar a migration M-04A no Supabase alvo
+
+**Validacoes:** `npm run typecheck`, `npm test`, `npm run lint` e `npm run build` passaram. `npm test` rodou 6 arquivos e 30 testes. O teste novo cobre token ausente, usuario pendente/bloqueado, motoboy ativo negado, payload invalido, logista ativo sem perfil `stores`, criacao por logista ativo e derivacao de `store_id` do usuario autenticado. O smoke `scripts/smoke-auth-rls.mjs` foi atualizado para validar `POST /api/deliveries`, negar escrita client-side em `delivery_requests` e confirmar que motoboy online nao ve entrega aguardando sem atribuicao; ele nao foi executado neste ciclo porque depende da migration M-04A ja aplicada no ambiente Supabase alvo.
+
+## 2026-05-15 - M-04A VALIDADA POS-MIGRATION
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** A migration `supabase/migrations/20260515210000_m04a_delivery_request_rls_hardening.sql` foi considerada aplicada no Supabase alvo a partir da evidencia visual do operador (`Success. No rows returned`) e o smoke real atualizado foi executado contra o ambiente. O smoke confirmou `POST /api/deliveries` para `logista` ativo, negacao para `pendente`, `motoboy` e payload invalido, escrita client-side negada em `delivery_requests`, leitura da loja para suas proprias entregas, leitura do motoboy somente para entrega ja atribuida a ele e ausencia de visibilidade de entrega `aguardando` sem atribuicao para motoboy online.
+**Arquivos criados:** nenhum
+**Arquivos modificados:** `scripts/smoke-auth-rls.mjs`, `STATUS.md`, `README.md`, `LOG.md`, `LEARNINGS.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado com sucesso
+
+**Validacoes:** `npm run typecheck`, `npm test`, `npm run lint` e `npm run build` passaram apos o ajuste final do smoke. `npm test` rodou 6 arquivos e 30 testes. `node scripts/smoke-auth-rls.mjs` passou com `all checks passed` e `cleanup completed`. A varredura residual por marcadores ficticios do smoke retornou zero para `auth_users`, `users`, `stores`, `couriers`, `delivery_requests` e `push_subscriptions`. Durante a validacao, tentativas iniciais expuseram residuos ficticios de smoke por falha no proprio script; somente registros com prefixo/marcadores `rls-smoke-*` foram removidos antes da execucao final limpa. Nenhum secret, token, header sensivel ou dado real foi impresso.
