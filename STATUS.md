@@ -47,6 +47,7 @@
 - [x] Frontend admin integrado ao `GET /api/admin/users/:id`, exibindo perfil expandido sanitizado no drawer sem liberar documentos/pagamentos.
 - [x] Backend `GET /api/admin/insights` disponivel com agregados minimos sem PII, e frontend `/admin/insights` integrado ao contrato real sem mocks.
 - [x] Smoke pos-deploy final de `/admin/insights` aprovado em producao: frontend `93d0175` e backend `b34f30d`, chamada autenticada retornando `200` e UI renderizando dados reais do contrato.
+- [x] Favicon de producao corrigido no frontend `587af96`, removendo o `404` estatico observado no smoke.
 
 ## Bloqueios
 

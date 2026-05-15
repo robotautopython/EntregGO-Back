@@ -63,3 +63,7 @@ Ao criar `GET /api/admin/users/:id`, o risco principal era retornar perfis compl
 ## 2026-05-15 - Smoke pos-deploy precisa validar front e back em separado
 
 O ciclo de `/admin/insights` mostrou dois modos de deploy stale diferentes: primeiro o frontend publicado ainda servia o placeholder antigo, depois o frontend correto chamava uma rota backend ainda inexistente em producao e recebia `404`. O gate seguro ficou em tres sinais independentes: bundle do frontend contendo `/api/admin/insights`, backend sem token retornando `401 AUTH_REQUIRED`, e sessao admin ativa retornando `200` no navegador. Tambem ficou reforcado que headers `Authorization`, cookies e payloads sensiveis nao devem ser colados em relatorios de smoke; apos exposicao parcial de token, a higiene recomendada e renovar a sessao.
+
+## 2026-05-15 - Corrigir asset estatico deve continuar pequeno
+
+O `favicon.ico` faltante era uma correcao operacional de baixo risco. O aprendizado foi manter o escopo no arquivo estatico necessario, usando o asset oficial existente, sem abrir ciclo de PWA, manifest, redesign ou dependencia nova. Esse padrao reduz ruido de observabilidade sem deslocar o roadmap sensivel de auth, uploads, pagamentos e performance.

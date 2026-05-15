@@ -233,3 +233,12 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Status:** fechado com ressalvas operacionais
 
 **Validacoes:** Smoke autenticado de sucesso aprovado por evidencia visual do operador, sem colar tokens, cookies ou headers sensiveis. A tela nao exibiu `Area reservada`, `Metricas de operacao entram depois...`, `Evitar dashboard fake...` ou `ComingSoonPanel`. A ausencia de PII fora do contrato foi validada no codigo e na area visivel do smoke: o painel usa apenas contagens, `id`, `role`, `status`, `created_at` e `generated_at`. Smoke de vazio nao executado porque nao havia dataset seguro naturalmente zerado em producao e nao foram criados dados artificiais. Smoke de falha de API foi observado no incidente real de deploy stale anterior, com UI exibindo `Falha ao carregar` e `Tentar novamente`; bloqueio reversivel via DevTools nao foi executado pelo Codex porque a sessao logada estava apenas no navegador do operador. Regressao basica parcial: `/admin` ja havia sido aberto na sessao de producao, e a navegacao admin permaneceu visivel; acoes destrutivas e logout nao foram executados.
+
+## 2026-05-15 - FAVICON FRONTEND PRODUCAO CORRIGIDO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O frontend recebeu `public/favicon.ico` gerado a partir do simbolo oficial ja existente, removendo o `404` de `https://entreggo.vercel.app/favicon.ico` observado no smoke. A mudanca ficou restrita ao frontend e a documentacao; backend, contratos, auth, banco e rotas admin nao foram alterados.
+**Agentes utilizados:** Camisa10, PromptRefiner, ImpactValidator, TestEngineer, Documentador
+**Status:** fechado em producao
+
+**Validacoes:** Frontend `npm run typecheck`, `npm run lint`, `npm test --if-present` e `npm run build` passaram. Localmente, `/favicon.ico` retornou `200` e `/admin/insights` retornou `200`. Apos deploy do frontend `587af96`, `https://entreggo.vercel.app/favicon.ico` passou de `404` para `200`, e `/admin/insights` permaneceu acessivel.
