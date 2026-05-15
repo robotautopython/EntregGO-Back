@@ -27,7 +27,7 @@ const createAuthUser = async (
   const { data, error } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: false,
+    email_confirm: true,
     user_metadata: {
       role,
     },

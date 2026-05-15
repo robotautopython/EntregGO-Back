@@ -109,6 +109,7 @@ describe('auth service', () => {
     expect(supabase.createUser).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'owner@example.com',
+        email_confirm: true,
         password: 'valid-password',
         user_metadata: {
           role: 'logista',
