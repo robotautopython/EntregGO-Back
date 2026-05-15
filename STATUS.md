@@ -2,20 +2,21 @@
 
 ## Estado Atual
 
-**Fase:** fundacao
-**Ultima atualizacao:** 2026-05-14
+**Fase:** fundacao/auth-operacao
+**Ultima atualizacao:** 2026-05-15
 **Atualizado por:** Codex/Camisa10
 
 ## Em Andamento
 
 - [ ] Planejar migracao segura do frontend para versao corrigida do Next.js antes de qualquer PWA/push real.
-- [ ] Evoluir telas internas do frontend conforme `design.md`, preservando seguranca e contratos.
+- [ ] Manter dashboards, pagamentos, documentos e historico de entregas como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
 - [ ] Rodar validadores de seguranca antes de auth real, uploads, policies RLS finais e push.
 - [ ] Rodar validadores de performance antes de aceite concorrente real, cron, queries de dashboard e realtime.
-- [ ] Planejar proximo ciclo: hardening admin UI, dashboard minimo admin ou uploads, conforme prioridade do produto.
+- [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
+- [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
 ## Concluido
 
@@ -40,13 +41,19 @@
 - [x] Smoke real parcial executado: API backend validou `/api/auth/me`, negacao admin para usuario `pendente`, `logista` e `motoboy`, listagem admin paginada e exigencia de admin ativo para `approve/block/unblock`.
 - [x] Smoke Auth/RLS real aprovado apos corrigir chaves Supabase modernas: backend com secret key `sb_secret_...`, frontend com publishable key `sb_publishable_...`, dados ficticios criados e limpeza concluida.
 - [x] M-02C especificado: identidade visual do frontend documentada em `design.md` e landing `/` criada como ponto inicial de cadastro/login.
+- [x] M-03 admin minimo no frontend validado contra backend M-02A: listagem paginada e aprovar/bloquear/desbloquear por API.
+- [x] F7 Track A enxuta no frontend documentada: paginas admin segmentadas por preset, drawer estrutural de usuario e placeholders honestos para endpoints ausentes.
+- [x] Track B backend inicial implementada: `GET /api/admin/users/:id` retorna usuario e perfil administrativo sanitizado sem campos de Storage/documentos.
+- [x] Frontend admin integrado ao `GET /api/admin/users/:id`, exibindo perfil expandido sanitizado no drawer sem liberar documentos/pagamentos.
+- [x] Backend `GET /api/admin/insights` disponivel com agregados minimos sem PII, e frontend `/admin/insights` integrado ao contrato real sem mocks.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real ou dashboards.
+- Projeto ainda nao possui uploads, push real, realtime real, dashboards complexos ou historico admin de entregas.
 - Frontend ainda possui vulnerabilidade residual em `next@14.2.35`/PostCSS interno; correcao exige migracao major do Next e deve ser tratada em ciclo proprio.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
+- Abas admin de documentos, entregas, pagamentos e notas seguem bloqueadas por falta de backend, schema/auditoria ou validadores especializados.
 
 ## Saude do Projeto
 

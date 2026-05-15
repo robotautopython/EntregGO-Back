@@ -47,3 +47,15 @@ O smoke autenticado real mostrou que uma negacao `401` para anon/read-only nas t
 ## 2026-05-14 - Supabase keys modernas mudam a validacao de formato
 
 Supabase agora diferencia publishable keys (`sb_publishable_...`) para componentes publicos e secret keys (`sb_secret_...`) para backend. A secret key moderna substitui a antiga `service_role` JWT em fluxos backend, mas nao tem formato JWT. Validadores e smokes nao devem exigir que `SUPABASE_SERVICE_ROLE_KEY` seja sempre `eyJ...`; devem aceitar `sb_secret_...` para backend e rejeitar qualquer `sb_secret_...` em variaveis `NEXT_PUBLIC_*`. No frontend, `NEXT_PUBLIC_SUPABASE_ANON_KEY` pode ser uma publishable key moderna ou a legacy anon JWT. O smoke so aprovou quando o backend usou `sb_secret_...` e o frontend usou `sb_publishable_...` no arquivo correto.
+
+## 2026-05-15 - UI admin deve ser honesta quando o backend ainda nao existe
+
+A Track A do admin frontend mostrou um bom padrao para avancar interface sem fingir funcionalidade: reutilizar endpoints reais ja validados (`GET /api/admin/users`, `PATCH approve/block/unblock`) e deixar abas futuras como placeholders explicitos com o endpoint faltante e o validador necessario. Isso evita dashboard mockado, exposicao prematura de PII e acoes de pagamento sem persistencia. O proximo backend deve priorizar o menor contrato real que destrava valor: detalhe expandido de usuario sem documentos sensiveis.
+
+## 2026-05-15 - Detalhe admin expandido deve selecionar so campos permitidos
+
+Ao criar `GET /api/admin/users/:id`, o risco principal era retornar perfis completos de `stores`/`couriers` e vazar `logo_url`, `bike_photo_url` ou `license_photo_url`. O padrao adotado foi criar tipos administrativos sanitizados e selects explicitos sem campos de Storage. Isso deixa a API util para o drawer sem antecipar pipeline de signed URLs, auditoria LGPD ou RLS de Storage.
+
+## 2026-05-15 - Insights minimos nao autorizam dashboard complexo
+
+`GET /api/admin/insights` destrava uma tela operacional enxuta porque retorna agregados pequenos e pendentes limitados sem PII. Qualquer evolucao para ranking, historico, graficos pesados, cache, polling, realtime ou consultas sobre entregas/pagamentos deve ser tratada como novo contrato e passar por Performance Validator antes da implementacao.

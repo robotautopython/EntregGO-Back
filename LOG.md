@@ -181,3 +181,46 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Status:** fechado com sucesso
 
 **Validacoes:** `node scripts/smoke-auth-rls.mjs` passou com `all checks passed` e `cleanup completed`. O smoke confirmou `/api/auth/me`, negacao admin para usuarios nao-admin e pendente, listagem admin paginada, `approve/block/unblock` restritos a admin ativo, anon negado nas tabelas de dominio, authenticated vendo somente sua propria linha em `users`, authenticated sem acesso a `payments`, escritas client-side negadas em tabelas de dominio e leitura propria em `stores`/`couriers`. Nenhum secret foi impresso.
+
+## 2026-05-15 - F7 TRACK A ADMIN FRONTEND DOCUMENTADA
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Foi registrado no backend o estado deixado pela implementacao frontend F7 Track A. O frontend admin agora usa o contrato backend M-02A existente para listar usuarios e executar aprovar/bloquear/desbloquear, com paginas segmentadas por preset (`/admin`, `/admin/lojas`, `/admin/motoboys`, `/admin/aprovacoes`, `/admin/usuarios`) e drawer estrutural de usuario. As abas de documentos, entregas, pagamentos e notas permanecem como placeholders honestos porque os endpoints e validacoes necessarios ainda nao existem no backend.
+**Arquivos backend modificados:** `STATUS.md`, `LOG.md`, `LEARNINGS.md`, `README.md`, `CONTRACTS.md`
+**Arquivos frontend observados:** `src/components/admin/AdminUsersPanel.tsx`, `src/components/admin/UserDetailDrawer.tsx`, `src/app/admin/**/page.tsx`
+**Agentes utilizados:** Camisa10, PromptRefiner, ImpactValidator, Documentador
+**Status:** documentado; backend sem mudanca de codigo
+
+**Validacoes:** Conferidos contratos reais do backend em `src/routes/admin.routes.ts`, `src/controllers/admin.controller.ts`, `src/services/admin.service.ts` e `CONTRACTS.md`. Confirmado que ainda nao existem `GET /api/admin/users/:id`, `/api/admin/insights`, `/api/admin/payments`, signed URLs de documentos ou `admin_notes`. Nenhum teste foi executado porque a mudanca foi documental.
+
+## 2026-05-15 - TRACK B BACKEND ADMIN USER DETAIL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementado `GET /api/admin/users/:id` no backend, usando os mesmos middlewares admin existentes (`authenticate`, `requireActiveUser`, `requireRoles('admin')`). O endpoint retorna `user` com os campos de `DomainUser` e `profile` sanitizado conforme role: loja com `name`, `owner_name`, `address` e `description`; motoboy com `full_name` e `is_online`; admin com `profile: null`. Campos de Storage/documentos (`logo_url`, `bike_photo_url`, `license_photo_url`) ficaram fora dos tipos, selects e resposta.
+**Arquivos modificados:** `src/types/domain.ts`, `src/services/admin.service.ts`, `src/controllers/admin.controller.ts`, `src/routes/admin.routes.ts`, `tests/admin-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `README.md`, `LEARNINGS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, PromptRefiner, Cetico, ImpactValidator, SecurityValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado localmente; pendente integracao do frontend ao novo contrato
+
+**Validacoes:** `npm run typecheck`, `npm test`, `npm run lint` e `npm run build` passaram. `npm test` rodou 5 arquivos e 17 testes. Testes novos cobrem token ausente, usuario autenticado nao-admin, admin ativo recebendo loja, admin ativo recebendo admin com `profile: null`, admin ativo recebendo motoboy sem campos de Storage/documento e usuario inexistente.
+
+## 2026-05-15 - FRONTEND INTEGRADO AO ADMIN USER DETAIL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O frontend passou a consumir `GET /api/admin/users/:id` no drawer admin, usando estado efemero para o perfil expandido sanitizado. A integracao manteve documentos, entregas, pagamento e notas bloqueados como placeholders e nao adicionou acesso direto ao Supabase de negocio.
+**Arquivos backend modificados:** `STATUS.md`, `README.md`, `LOG.md`
+**Arquivos frontend modificados:** `src/types/auth.ts`, `src/lib/api.ts`, `src/components/admin/AdminUsersPanel.tsx`, `src/components/admin/UserDetailDrawer.tsx`, `STATUS.md`, `CONTRACTS.md`, `README.md`, `LEARNINGS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, TestEngineer, FinalValidator, Documentador
+**Status:** documentado; backend sem mudanca de codigo neste ciclo
+
+**Validacoes:** No frontend, `npm run typecheck`, `npm run lint`, `npm test --if-present` e `npm run build` passaram. Build gerou 24 rotas.
+
+## 2026-05-15 - FRONTEND INTEGRADO AO ADMIN INSIGHTS
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O frontend substituiu o `ComingSoonPanel` de `/admin/insights` por consumo real de `GET /api/admin/insights`. A tela exibe contagens por role/status, lojas ativas, motoboys ativos, ultimos cadastros pendentes limitados pelo backend e `generated_at` formatado. Nao foram adicionados mocks, graficos complexos, cache, polling, realtime, acesso direto ao banco ou PII fora do contrato.
+**Arquivos backend modificados:** `STATUS.md`, `README.md`, `LOG.md`, `LEARNINGS.md`
+**Arquivos frontend modificados:** `src/types/auth.ts`, `src/lib/api.ts`, `src/app/admin/insights/page.tsx`, `STATUS.md`, `CONTRACTS.md`, `README.md`, `LEARNINGS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, TestEngineer, Documentador
+**Status:** documentado; backend sem mudanca de codigo neste ciclo
+
+**Validacoes:** Frontend `npm run typecheck`, `npm run lint`, `npm test --if-present` e `npm run build` passaram. Backend, tocado apenas em documentacao, tambem passou em `npm run typecheck`, `npm test`, `npm run lint` e `npm run build`. Browser local em `http://127.0.0.1:3002/admin/insights` abriu sem o texto antigo do placeholder; sem sessao admin real disponivel no navegador, a verificacao visual ficou limitada ao shell/guard de auth.

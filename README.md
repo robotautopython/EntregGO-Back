@@ -4,7 +4,7 @@ Backend do EntregGO, responsavel pela API REST, regras de negocio, autorizacao, 
 
 ## Estado atual
 
-Fase de fundacao tecnica. Este repositorio possui manifest, dependencias, TypeScript, Express minimo e healthcheck. Ainda nao possui regras de negocio, auth real, uploads, push real, migrations finais ou testes de dominio.
+Fase de fundacao/auth-operacao. Este repositorio possui Express/TypeScript, Supabase service role server-side, auth por Bearer token, cadastro loja/motoboy, listagem admin paginada, detalhe admin expandido sanitizado, insights administrativos minimos e acoes admin de aprovar, bloquear e desbloquear usuarios. A migration M-01 e o smoke Auth/RLS real ja foram validados com dados ficticios e limpeza.
 
 ## Responsabilidades
 
@@ -14,9 +14,9 @@ Fase de fundacao tecnica. Este repositorio possui manifest, dependencias, TypeSc
 - Validar entradas no backend antes de qualquer operacao sensivel.
 - Concentrar acesso com service role ao Supabase.
 
-## Fora da fundacao atual
+## Fora do estado atual
 
-- Implementar auth, uploads, push, realtime, migrations finais ou endpoints reais.
+- Implementar uploads, push, realtime, dashboards complexos, pagamentos administrativos ou historico de entregas.
 - Inserir secrets reais.
 
 ## Comandos
@@ -29,4 +29,4 @@ Fase de fundacao tecnica. Este repositorio possui manifest, dependencias, TypeSc
 
 ## Proximo passo
 
-Criar migrations iniciais do Supabase e iniciar o ciclo de banco com validacao de seguranca antes de RLS, auth, PII ou uploads.
+Pagamentos, documentos e historico de entregas dependem de contratos proprios e validadores especializados. Dashboards mais ricos devem passar por Performance Validator antes de novas agregacoes, cache, polling ou listas grandes.

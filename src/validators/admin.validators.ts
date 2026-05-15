@@ -8,6 +8,8 @@ export const adminListUsersQuerySchema = z.object({
   search: z.string().trim().min(1).max(120).optional(),
 });
 
+export const adminInsightsQuerySchema = z.object({}).strict();
+
 export const userIdParamsSchema = z.object({
   id: z.uuid(),
 });

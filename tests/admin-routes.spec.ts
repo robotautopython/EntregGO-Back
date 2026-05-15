@@ -1,0 +1,560 @@
+import request from 'supertest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type {
+  AdminCourierProfile,
+  AdminInsightsPendingUser,
+  AdminStoreProfile,
+  DomainUser,
+  UserRole,
+  UserStatus,
+} from '../src/types/domain.js';
+
+const supabaseMock = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  from: vi.fn(),
+}));
+
+vi.mock('../src/config/supabase.js', () => ({
+  getSupabaseAdminClient: () => ({
+    auth: {
+      getUser: supabaseMock.getUser,
+    },
+    from: supabaseMock.from,
+  }),
+}));
+
+const { app } = await import('../src/app.js');
+
+const activeAdmin: DomainUser = {
+  id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  auth_id: 'auth-admin',
+  email: 'admin@example.com',
+  role: 'admin',
+  status: 'ativo',
+  approved_at: '2026-05-14T00:00:00.000Z',
+  approved_by: null,
+  created_at: '2026-05-14T00:00:00.000Z',
+  updated_at: '2026-05-14T00:00:00.000Z',
+};
+
+const activeStoreUser: DomainUser = {
+  id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  auth_id: 'auth-store',
+  email: 'store@example.com',
+  role: 'logista',
+  status: 'ativo',
+  approved_at: '2026-05-14T00:00:00.000Z',
+  approved_by: activeAdmin.id,
+  created_at: '2026-05-14T00:00:00.000Z',
+  updated_at: '2026-05-14T00:00:00.000Z',
+};
+
+const activeCourierUser: DomainUser = {
+  id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  auth_id: 'auth-courier',
+  email: 'courier@example.com',
+  role: 'motoboy',
+  status: 'ativo',
+  approved_at: '2026-05-14T00:00:00.000Z',
+  approved_by: activeAdmin.id,
+  created_at: '2026-05-14T00:00:00.000Z',
+  updated_at: '2026-05-14T00:00:00.000Z',
+};
+
+const storeProfile: AdminStoreProfile = {
+  id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  user_id: activeStoreUser.id,
+  name: 'Loja Teste',
+  owner_name: 'Pessoa Teste',
+  address: 'Rua Teste, 123',
+  description: 'Descricao interna',
+  created_at: '2026-05-14T00:00:00.000Z',
+  updated_at: '2026-05-14T00:00:00.000Z',
+};
+
+const courierProfile: AdminCourierProfile = {
+  id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  user_id: activeCourierUser.id,
+  full_name: 'Motoboy Teste',
+  is_online: true,
+  created_at: '2026-05-14T00:00:00.000Z',
+  updated_at: '2026-05-14T00:00:00.000Z',
+};
+
+type SupabaseResult = {
+  data: unknown;
+  error: unknown;
+};
+
+const notFoundResult = {
+  data: null,
+  error: {
+    message: 'not found',
+  },
+};
+
+const createSelectTableByColumn = (results: Record<string, SupabaseResult>) => {
+  const select = vi.fn(() => ({
+    eq: vi.fn((column: string) => ({
+      single: vi.fn().mockResolvedValue(results[column] ?? notFoundResult),
+    })),
+  }));
+
+  return {
+    select,
+  };
+};
+
+type CountKey = `${UserRole}:${UserStatus}`;
+type PendingRole = AdminInsightsPendingUser['role'];
+
+const countKey = (role: UserRole, status: UserStatus): CountKey => `${role}:${status}`;
+
+const createAdminInsightsUsersTable = ({
+  authUser = activeAdmin,
+  counts = {},
+  pendingUsers = {},
+  failCountFor,
+}: {
+  authUser?: DomainUser;
+  counts?: Partial<Record<CountKey, number>>;
+  pendingUsers?: Partial<Record<PendingRole, AdminInsightsPendingUser[]>>;
+  failCountFor?: CountKey;
+}) => {
+  const select = vi.fn((columns: string, options?: { count?: string; head?: boolean }) => {
+    if (columns === 'id' && options?.count === 'exact' && options.head === true) {
+      return {
+        eq: vi.fn((_roleColumn: string, role: UserRole) => ({
+          eq: vi.fn((_statusColumn: string, status: UserStatus) => {
+            if (failCountFor === countKey(role, status)) {
+              return Promise.resolve({
+                data: null,
+                count: null,
+                error: {
+                  message: 'count failed',
+                },
+              });
+            }
+
+            return Promise.resolve({
+              data: null,
+              count: counts[countKey(role, status)] ?? 0,
+              error: null,
+            });
+          }),
+        })),
+      };
+    }
+
+    if (columns === 'id,role,status,created_at') {
+      return {
+        eq: vi.fn((_roleColumn: string, role: PendingRole) => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(() => ({
+              limit: vi.fn((limit: number) =>
+                Promise.resolve({
+                  data: (pendingUsers[role] ?? []).slice(0, limit),
+                  error: null,
+                }),
+              ),
+            })),
+          })),
+        })),
+      };
+    }
+
+    return {
+      eq: vi.fn((column: string) => ({
+        single: vi.fn().mockResolvedValue(
+          column === 'auth_id'
+            ? {
+                data: authUser,
+                error: null,
+              }
+            : notFoundResult,
+        ),
+      })),
+    };
+  });
+
+  return {
+    select,
+  };
+};
+
+const mockAuthUser = (authUserId = 'auth-admin') => {
+  supabaseMock.getUser.mockResolvedValue({
+    data: {
+      user: {
+        id: authUserId,
+      },
+    },
+    error: null,
+  });
+};
+
+describe('admin insights route', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it('rejects insights requests without a bearer token', async () => {
+    const response = await request(app).get('/api/admin/insights').expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'AUTH_REQUIRED',
+      },
+    });
+  });
+
+  it('rejects insights requests from authenticated non-admin users', async () => {
+    mockAuthUser('auth-store');
+    supabaseMock.from.mockReturnValue(
+      createAdminInsightsUsersTable({
+        authUser: activeStoreUser,
+      }),
+    );
+
+    const response = await request(app)
+      .get('/api/admin/insights')
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe('FORBIDDEN_ROLE');
+  });
+
+  it('rejects unsupported insights query parameters', async () => {
+    mockAuthUser();
+    supabaseMock.from.mockReturnValue(createAdminInsightsUsersTable({}));
+
+    const response = await request(app)
+      .get('/api/admin/insights?limit=10')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+  });
+
+  it('returns minimal insights for active admins without querying profile tables or PII', async () => {
+    mockAuthUser();
+
+    const newestPending: AdminInsightsPendingUser = {
+      id: '11111111-1111-4111-8111-111111111111',
+      role: 'logista',
+      status: 'pendente',
+      created_at: '2026-05-15T11:00:00.000Z',
+    };
+    const olderPending: AdminInsightsPendingUser = {
+      id: '22222222-2222-4222-8222-222222222222',
+      role: 'motoboy',
+      status: 'pendente',
+      created_at: '2026-05-15T10:00:00.000Z',
+    };
+
+    const usersTable = createAdminInsightsUsersTable({
+      counts: {
+        [countKey('admin', 'ativo')]: 1,
+        [countKey('logista', 'pendente')]: 2,
+        [countKey('logista', 'ativo')]: 10,
+        [countKey('logista', 'bloqueado')]: 1,
+        [countKey('motoboy', 'pendente')]: 3,
+        [countKey('motoboy', 'ativo')]: 8,
+      },
+      pendingUsers: {
+        logista: [newestPending],
+        motoboy: [olderPending],
+      },
+    });
+    supabaseMock.from.mockReturnValue(usersTable);
+
+    const response = await request(app)
+      .get('/api/admin/insights')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      success: true,
+      data: {
+        user_counts: {
+          admin: {
+            pendente: 0,
+            ativo: 1,
+            bloqueado: 0,
+          },
+          logista: {
+            pendente: 2,
+            ativo: 10,
+            bloqueado: 1,
+          },
+          motoboy: {
+            pendente: 3,
+            ativo: 8,
+            bloqueado: 0,
+          },
+        },
+        active_accounts: {
+          stores: 10,
+          couriers: 8,
+        },
+        latest_pending_users: {
+          limit: 5,
+          items: [newestPending, olderPending],
+        },
+      },
+      message: 'Insights administrativos gerados',
+    });
+    expect(Date.parse(response.body.data.generated_at)).not.toBeNaN();
+    expect(supabaseMock.from.mock.calls.every(([table]) => table === 'users')).toBe(true);
+
+    const serializedData = JSON.stringify(response.body.data);
+    expect(serializedData).not.toContain('email');
+    expect(serializedData).not.toContain('auth_id');
+    expect(serializedData).not.toContain('approved_by');
+    expect(serializedData).not.toContain('owner_name');
+    expect(serializedData).not.toContain('address');
+    expect(serializedData).not.toContain('full_name');
+    expect(serializedData).not.toContain('logo_url');
+    expect(serializedData).not.toContain('bike_photo_url');
+    expect(serializedData).not.toContain('license_photo_url');
+  });
+
+  it('limits latest pending users to five after merging role-specific queries', async () => {
+    mockAuthUser();
+
+    const pendingUsers = Array.from({ length: 6 }, (_, index) => ({
+      id: `${index + 1}`.repeat(8) + '-1111-4111-8111-111111111111',
+      role: index % 2 === 0 ? 'logista' : 'motoboy',
+      status: 'pendente',
+      created_at: `2026-05-15T1${index}:00:00.000Z`,
+    })) satisfies AdminInsightsPendingUser[];
+
+    supabaseMock.from.mockReturnValue(
+      createAdminInsightsUsersTable({
+        pendingUsers: {
+          logista: pendingUsers.filter((user) => user.role === 'logista'),
+          motoboy: pendingUsers.filter((user) => user.role === 'motoboy'),
+        },
+      }),
+    );
+
+    const response = await request(app)
+      .get('/api/admin/insights')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(response.body.data.latest_pending_users.items).toHaveLength(5);
+    expect(response.body.data.latest_pending_users.items[0].created_at).toBe(
+      '2026-05-15T15:00:00.000Z',
+    );
+  });
+
+  it('returns a standardized error when an insights query fails', async () => {
+    mockAuthUser();
+    supabaseMock.from.mockReturnValue(
+      createAdminInsightsUsersTable({
+        failCountFor: countKey('logista', 'ativo'),
+      }),
+    );
+
+    const response = await request(app)
+      .get('/api/admin/insights')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'ADMIN_INSIGHTS_FAILED',
+        message: 'Insights administrativos falharam',
+      },
+    });
+  });
+});
+
+describe('admin user detail route', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it('rejects detail requests without a bearer token', async () => {
+    const response = await request(app).get(`/api/admin/users/${activeStoreUser.id}`).expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'AUTH_REQUIRED',
+      },
+    });
+  });
+
+  it('rejects detail requests from authenticated non-admin users', async () => {
+    mockAuthUser('auth-store');
+
+    const usersTable = createSelectTableByColumn({
+      auth_id: {
+        data: activeStoreUser,
+        error: null,
+      },
+    });
+    supabaseMock.from.mockReturnValue(usersTable);
+
+    const response = await request(app)
+      .get(`/api/admin/users/${activeCourierUser.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe('FORBIDDEN_ROLE');
+  });
+
+  it('returns a store user with an expanded store profile for active admins', async () => {
+    mockAuthUser();
+
+    const usersTable = createSelectTableByColumn({
+      auth_id: {
+        data: activeAdmin,
+        error: null,
+      },
+      id: {
+        data: activeStoreUser,
+        error: null,
+      },
+    });
+    const storesTable = createSelectTableByColumn({
+      user_id: {
+        data: storeProfile,
+        error: null,
+      },
+    });
+    supabaseMock.from.mockImplementation((table: string) => {
+      if (table === 'users') return usersTable;
+      if (table === 'stores') return storesTable;
+      return createSelectTableByColumn({});
+    });
+
+    const response = await request(app)
+      .get(`/api/admin/users/${activeStoreUser.id}`)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      success: true,
+      data: {
+        user: activeStoreUser,
+        profile: storeProfile,
+      },
+      message: 'Usuario encontrado',
+    });
+    expect(storesTable.select).toHaveBeenCalledWith(
+      'id,user_id,name,owner_name,address,description,created_at,updated_at',
+    );
+  });
+
+  it('returns an admin user with a null profile', async () => {
+    mockAuthUser();
+
+    const usersTable = createSelectTableByColumn({
+      auth_id: {
+        data: activeAdmin,
+        error: null,
+      },
+      id: {
+        data: activeAdmin,
+        error: null,
+      },
+    });
+    supabaseMock.from.mockReturnValue(usersTable);
+
+    const response = await request(app)
+      .get(`/api/admin/users/${activeAdmin.id}`)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(response.body.data).toEqual({
+      user: activeAdmin,
+      profile: null,
+    });
+    expect(supabaseMock.from).not.toHaveBeenCalledWith('stores');
+    expect(supabaseMock.from).not.toHaveBeenCalledWith('couriers');
+  });
+
+  it('returns a courier user without document or storage fields', async () => {
+    mockAuthUser();
+
+    const usersTable = createSelectTableByColumn({
+      auth_id: {
+        data: activeAdmin,
+        error: null,
+      },
+      id: {
+        data: activeCourierUser,
+        error: null,
+      },
+    });
+    const couriersTable = createSelectTableByColumn({
+      user_id: {
+        data: courierProfile,
+        error: null,
+      },
+    });
+    supabaseMock.from.mockImplementation((table: string) => {
+      if (table === 'users') return usersTable;
+      if (table === 'couriers') return couriersTable;
+      return createSelectTableByColumn({});
+    });
+
+    const response = await request(app)
+      .get(`/api/admin/users/${activeCourierUser.id}`)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    const serializedData = JSON.stringify(response.body.data);
+
+    expect(response.body.data).toEqual({
+      user: activeCourierUser,
+      profile: courierProfile,
+    });
+    expect(serializedData).not.toContain('bike_photo_url');
+    expect(serializedData).not.toContain('license_photo_url');
+    expect(serializedData).not.toContain('logo_url');
+    expect(couriersTable.select).toHaveBeenCalledWith(
+      'id,user_id,full_name,is_online,created_at,updated_at',
+    );
+  });
+
+  it('returns 404 when the requested user does not exist', async () => {
+    mockAuthUser();
+
+    const usersTable = createSelectTableByColumn({
+      auth_id: {
+        data: activeAdmin,
+        error: null,
+      },
+      id: notFoundResult,
+    });
+    supabaseMock.from.mockReturnValue(usersTable);
+
+    const response = await request(app)
+      .get('/api/admin/users/ffffffff-ffff-4fff-8fff-ffffffffffff')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'USER_NOT_FOUND',
+      },
+    });
+  });
+});

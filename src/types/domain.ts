@@ -36,6 +36,51 @@ export interface CourierProfile {
   updated_at: string;
 }
 
+export interface AdminStoreProfile {
+  id: string;
+  user_id: string;
+  name: string;
+  owner_name: string;
+  address: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCourierProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  is_online: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserDetail {
+  user: DomainUser;
+  profile: AdminStoreProfile | AdminCourierProfile | null;
+}
+
+export interface AdminInsightsPendingUser {
+  id: string;
+  role: 'logista' | 'motoboy';
+  status: 'pendente';
+  created_at: string;
+}
+
+export interface AdminInsights {
+  generated_at: string;
+  user_counts: Record<UserRole, Record<UserStatus, number>>;
+  active_accounts: {
+    stores: number;
+    couriers: number;
+  };
+  latest_pending_users: {
+    limit: number;
+    items: AdminInsightsPendingUser[];
+  };
+}
+
 export interface AuthContext {
   authUserId: string;
   user: DomainUser;
