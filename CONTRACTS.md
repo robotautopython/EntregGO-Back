@@ -227,7 +227,57 @@ Resposta:
 }
 ```
 
-Fora deste contrato: pool de motoboys, aceite concorrente, `accept`, mudanca de status, listagem/historico, realtime, push, cron de expiracao, dashboards, pagamentos e frontend.
+Fora deste contrato: pool de motoboys, aceite concorrente, `accept`, mudanca de status, realtime, push, cron de expiracao, dashboards, pagamentos e frontend.
+
+## Entregas M-05
+
+### `GET /api/deliveries`
+
+Lista as solicitacoes de entrega da loja vinculada ao usuario autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=logista` e `status=ativo`.
+
+Query params (schema strict):
+
+- `page`: inteiro, minimo 1, default 1.
+- `limit`: inteiro, minimo 1, maximo 50, default 20.
+- `status`: opcional, um de `aguardando|aceita|coletada|em_transito|entregue|expirada|cancelada`.
+- Qualquer outro parametro (incluindo `store_id`, `courier_id`, `user_id`) gera `VALIDATION_ERROR`.
+
+Regras:
+
+- `store_id` e sempre derivado do perfil `stores` do usuario autenticado; nunca vem do request.
+- Como o backend usa service role (RLS nao se aplica server-side), o isolamento multi-tenant e garantido pelo filtro server-side `store_id = <loja da sessao>`.
+- Ordem fixa: `created_at` descendente.
+- A resposta nunca inclui `store_id` nem `courier_id`.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `STORE_PROFILE_REQUIRED`, `VALIDATION_ERROR`, `DELIVERY_LIST_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "destination_address": null,
+        "notes": "Observacao opcional",
+        "status": "aguardando",
+        "created_at": "2026-05-15T20:00:00.000Z",
+        "expires_at": "2026-05-15T20:01:00.000Z",
+        "accepted_at": null,
+        "collected_at": null,
+        "in_transit_at": null,
+        "delivered_at": null,
+        "updated_at": "2026-05-15T20:00:00.000Z"
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total": 1 }
+  },
+  "message": "Entregas encontradas"
+}
+```
+
+Fora deste contrato: aceite concorrente, mudanca de status, detalhe unico, historico admin, busca textual, filtros por data, agregados reais, dados de motoboy, realtime, push, cron, dashboards, pagamentos e frontend.
 
 ## Admin ainda ausente no backend
 

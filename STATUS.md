@@ -14,7 +14,7 @@
 
 - [ ] Rodar validadores de seguranca antes de auth real, uploads, policies RLS finais e push.
 - [ ] Rodar validadores de performance antes de aceite concorrente real, cron, queries de dashboard e realtime.
-- [ ] Especificar proximo marco de entregas sem antecipar aceite concorrente, pool de motoboys, realtime, push, cron ou historico.
+- [ ] Aplicar smoke real e deploy do M-05; integrar frontend do historico da loja ao `GET /api/deliveries` removendo mock, busca textual e dados de motoboy.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
@@ -54,6 +54,7 @@
 - [x] M-04C implementado localmente: `destinationAddress` opcional no contrato de criacao de entrega, migration nullable para `delivery_requests.destination_address`, payload restrito e docs cross-stack atualizadas.
 - [x] M-04C validado pos-migration no Supabase alvo: SQL aplicado com sucesso e smoke Auth/RLS real confirmou criacao sem endereco com `destination_address=null`, negacoes por role/status, payload derivado rejeitado e cleanup completo.
 - [x] M-04C validada pos-deploy em producao: smoke publico confirmou `401 AUTH_REQUIRED` sem token, frontend `/loja/nova-entrega` `200` e bundle com payload minimo; smoke autenticado criou entrega com payload `{}`, `destination_address=null`, `status=aguardando`, `courier_id=null` e cleanup completo, sem SQL adicional nem exposicao de secrets.
+- [x] M-05 implementado localmente no backend: `GET /api/deliveries` lista entregas somente da loja autenticada com `store_id` derivado da sessao, schema strict de query (`page`/`limit<=50`/`status`), ordem `created_at desc`, resposta sem `store_id`/`courier_id`, sem migration/RLS; `typecheck`, `test` (49), `lint`, `build` e `git diff --check` passaram.
 
 ## Bloqueios
 

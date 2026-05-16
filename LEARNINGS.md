@@ -117,3 +117,26 @@ Para qualquer opcionalidade nova em payload persistido, checar migration, tipo d
 
 ### Impacto no projeto
 O contrato ficou coerente de ponta a ponta localmente sem liberar aceite, realtime, push, cron, historico, cancelamento ou expiracao.
+
+---
+
+## 2026-05-15 - Service role nao herda isolamento da RLS; filtrar tenant na query
+
+**Tipo:** Armadilha
+**Fase:** fundacao/auth-operacao
+**Contexto:** Implementacao de `GET /api/deliveries` (M-05) para listar entregas da loja autenticada.
+
+### O que aconteceu
+A policy M-04A `delivery_requests_select_own_store_or_assigned_courier` ja restringe leitura por loja, mas o backend consulta `delivery_requests` via `getSupabaseAdminClient()` (service role). Service role ignora RLS, entao a policy nao protege a leitura server-side da listagem.
+
+### Por que aconteceu
+RLS so atua em conexoes client-side com chave anon/usuario. Confiar na RLS para um endpoint que usa service role criaria um vazamento multi-tenant silencioso (uma loja veria entregas de outra).
+
+### Como foi resolvido
+O isolamento foi garantido explicitamente no codigo: derivar `store_id` de `stores.user_id = domainUser.id` e aplicar `.eq('store_id', store.id)` na query. Testes assertam a chamada `eq('store_id', <loja da sessao>)` e a ausencia de `store_id`/`courier_id` no `select` e na resposta.
+
+### O que fazer diferente da proxima vez
+Para qualquer leitura/escrita server-side com service role, tratar a RLS apenas como defesa em profundidade do client-side e sempre filtrar o tenant explicitamente na query. Nao usar a existencia de uma policy como prova de isolamento de endpoint backend.
+
+### Impacto no projeto
+Listagem M-05 entregue com isolamento multi-tenant verificado por teste, sem migration/RLS, mantendo aceite, realtime, push, cron, historico e detalhe unico fora de escopo.
