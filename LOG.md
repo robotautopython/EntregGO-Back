@@ -357,3 +357,12 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Status:** fechado localmente; deploy pendente
 
 **Validacoes:** Gates ImpactValidator (campo aditivo retrocompativel, cross-stack mapeado) e PerformanceValidator (embed 1:1 numa unica query elimina N+1; +1 string curta por item; `count: 'exact'` e order/range inalterados) aprovados. Backend `npm run typecheck`, `npm test` (6 arquivos, 52 testes, 3 novos da listagem), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm run lint`, `npm run build`, `npm test --if-present` (sem suite) e `git diff --check` passaram. Os testes novos cobrem: sem token (`AUTH_REQUIRED`), nao-admin (`FORBIDDEN_ROLE`) e admin recebendo `store_name` so para logista, `null` para admin/motoboy, sem vazar a chave `stores` nem `logo_url`. Nenhum secret, token ou header foi exposto. Motoboy segue backlog do ciclo de aceite com SecurityValidator.
+
+## 2026-05-16 - CIRURGICO ADMIN POS-DEPLOY
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Backend publicado (`f30bfc7..946d84d`) e frontend publicado (`6833695..506c740`) na Vercel; ambos os repos `0 0` com `origin/main` apos o push (backend primeiro, depois frontend). Smoke publico confirmou o servico e o deploy do frontend.
+**Agentes utilizados:** Camisa10, TestEngineer, FinalValidator, Documentador
+**Status:** fechado em producao com ressalva de smoke autenticado
+
+**Validacoes:** Backend `GET /api/health` -> `200` e `GET /api/admin/users` sem token -> `401 AUTH_REQUIRED` (rota protegida; servico no ar). Frontend `/admin/usuarios` -> `200` e o bundle publicado (chunk compartilhado `87-*.js`) contem `store_name`, a coluna `Loja` e `api/admin/users`, confirmando o codigo M-cirurgico em producao. Ressalva: `GET /api/admin/users` e autenticado e nao tem marcador publico distintivo no backend; a verificacao do valor de `store_name` por sessao real depende de smoke autenticado (mesmo gate de credencial da M-05) e nao foi executada para nao expor secret/token/header. Nenhum SQL, migration, RLS, grant ou policy. Nenhum secret/token/header exposto. Motoboy segue backlog do ciclo de aceite com SecurityValidator.
