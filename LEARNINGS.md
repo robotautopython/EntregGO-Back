@@ -161,3 +161,24 @@ Todo smoke reutilizavel deve declarar explicitamente o alvo validado: API local,
 
 ### Impacto no projeto
 A M-05 foi fechada contra producao sem expor tokens, cookies, headers ou secrets, e o script ficou reaproveitavel para proximos smokes pos-deploy.
+
+## 2026-05-16 - "Nao aparece" pode ser ausencia no contrato, nao bug de UI
+
+**Tipo:** Padrao
+**Fase:** fundacao/auth-operacao
+**Contexto:** Queixa de que o nome da loja nao aparece no painel admin nem na visao do motoboy.
+
+### O que aconteceu
+O suspeito obvio era o frontend, mas a investigacao read-only mostrou que o drawer admin (`UserDetailDrawer.tsx:355`) ja renderiza `profile.name` e o backend de detalhe (`getUserDetail`) ja seleciona `name`. A lacuna real do admin esta no contrato de listagem `GET /api/admin/users`, que so devolve `DomainUser`. No motoboy, o dado e mock e nao existe contrato backend de loja para esse ator.
+
+### Por que aconteceu
+"Campo nao aparece" tende a ser lido como bug de render. Quando a tela ja referencia o campo, a causa costuma estar a montante: o endpoint de listagem nao entrega o dado, ou o ator nao tem contrato para aquele dado.
+
+### Como foi resolvido
+Diagnostico registrado sem codigo. Admin virou tarefa cirurgica de contrato (incluir nome na listagem sem N+1, com ImpactValidator + PerformanceValidator). Motoboy virou backlog do ciclo de aceite com SecurityValidator (PII/contrato entre atores).
+
+### O que fazer diferente da proxima vez
+Antes de editar a tela, rastrear o contrato/endpoint que alimenta o campo. Incluir campo em endpoint de listagem e mudanca de contrato (risco N+1/payload), nao ajuste cosmetico. Expor dado de um ator a outro (loja -> motoboy) e sempre gate de SecurityValidator.
+
+### Impacto no projeto
+Evita editar UI que ja esta correta, separa correcao cirurgica (admin) de feature sensivel (motoboy) e mantem o roadmap de aceite/PII no padrao com validadores.

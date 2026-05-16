@@ -17,6 +17,7 @@
 - [ ] Especificar proximo marco de entregas sem antecipar aceite concorrente, pool de motoboys, realtime, push, cron ou historico admin.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
+- [ ] Cirurgico admin: exibir nome da loja na listagem. `GET /api/admin/users` (`listUsers`) hoje so devolve `DomainUser`; incluir nome/identificador da loja por linha sem N+1, com ImpactValidator + PerformanceValidator. Diagnostico em LOG 2026-05-16.
 
 ## Concluido
 
@@ -64,6 +65,7 @@
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
 - Abas admin de documentos, entregas, pagamentos e notas seguem bloqueadas por falta de backend, schema/auditoria ou validadores especializados.
+- Exibir nome/dados da loja ao motoboy (visao de corrida hoje mockada no frontend `CorridaAtiva.tsx`) depende de novo contrato backend e so pode ser feito em ciclo dedicado do fluxo de aceite com SecurityValidator (PII/contrato entre atores). Nao tratar como ajuste de UI.
 
 ## Saude do Projeto
 
