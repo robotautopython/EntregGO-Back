@@ -6,6 +6,7 @@ import {
   getActiveDeliveryController,
   listAvailableDeliveriesController,
   listDeliveriesController,
+  updateDeliveryStatusController,
 } from '../controllers/delivery.controller.js';
 import { authenticate, requireActiveUser, requireRoles } from '../middlewares/auth.middleware.js';
 import { validateRequest } from '../middlewares/validate-request.js';
@@ -16,6 +17,7 @@ import {
   deliveryIdParamsSchema,
   listAvailableDeliveriesQuerySchema,
   listDeliveriesQuerySchema,
+  updateDeliveryStatusSchema,
 } from '../validators/delivery.validators.js';
 
 export const deliveryRouter = Router();
@@ -63,4 +65,13 @@ deliveryRouter.post(
   requireRoles('motoboy'),
   validateRequest({ params: deliveryIdParamsSchema }),
   asyncHandler(acceptDeliveryController),
+);
+
+deliveryRouter.patch(
+  '/:id/status',
+  authenticate,
+  requireActiveUser,
+  requireRoles('motoboy'),
+  validateRequest({ params: deliveryIdParamsSchema, body: updateDeliveryStatusSchema }),
+  asyncHandler(updateDeliveryStatusController),
 );

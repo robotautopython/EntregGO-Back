@@ -7,6 +7,7 @@ import type {
   CreateDeliveryInput,
   ListAvailableDeliveriesQuery,
   ListDeliveriesQuery,
+  UpdateDeliveryStatusInput,
 } from '../validators/delivery.validators.js';
 
 const storeOwnershipSelect = 'id,user_id';
@@ -21,6 +22,35 @@ const courierAcceptedDeliverySelect =
 const courierActiveDeliverySelect =
   'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)';
 const databaseNow = 'now';
+
+type CourierActiveStatus = Extract<
+  DeliveryRequest['status'],
+  'aceita' | 'coletada' | 'em_transito'
+>;
+type CourierTransitionStatus = UpdateDeliveryStatusInput['status'];
+type CourierVisibleStatus = CourierActiveStatus | CourierTransitionStatus;
+
+const courierActiveStatuses: CourierActiveStatus[] = ['aceita', 'coletada', 'em_transito'];
+const deliveryTransitions: Record<
+  CourierTransitionStatus,
+  {
+    from: CourierVisibleStatus;
+    timestampColumn: 'collected_at' | 'in_transit_at' | 'delivered_at';
+  }
+> = {
+  coletada: {
+    from: 'aceita',
+    timestampColumn: 'collected_at',
+  },
+  em_transito: {
+    from: 'coletada',
+    timestampColumn: 'in_transit_at',
+  },
+  entregue: {
+    from: 'em_transito',
+    timestampColumn: 'delivered_at',
+  },
+};
 
 interface StoreOwnership {
   id: string;
@@ -111,7 +141,18 @@ export interface CourierActiveDeliveryState {
   id: string;
   destination_address: string | null;
   notes: string | null;
-  status: 'aceita';
+  status: CourierActiveStatus;
+  accepted_at: string | null;
+  created_at: string;
+  expires_at: string;
+  store: DeliveryStoreSummary;
+}
+
+export interface CourierDeliveryStatusState {
+  id: string;
+  destination_address: string | null;
+  notes: string | null;
+  status: CourierVisibleStatus;
   accepted_at: string | null;
   created_at: string;
   expires_at: string;
@@ -192,17 +233,24 @@ const toCourierAcceptedDeliveryState = (
   store: normalizeStoreSummary(row.stores),
 });
 
-const toCourierActiveDeliveryState = (
+const toCourierDeliveryStatusState = (
   row: CourierActiveDeliveryRow,
-): CourierActiveDeliveryState => ({
+): CourierDeliveryStatusState => ({
   id: row.id,
   destination_address: row.destination_address,
   notes: row.notes,
-  status: 'aceita',
+  status: row.status as CourierVisibleStatus,
   accepted_at: row.accepted_at,
   created_at: row.created_at,
   expires_at: row.expires_at,
   store: normalizeStoreSummary(row.stores),
+});
+
+const toCourierActiveDeliveryState = (
+  row: CourierActiveDeliveryRow,
+): CourierActiveDeliveryState => ({
+  ...toCourierDeliveryStatusState(row),
+  status: row.status as CourierActiveStatus,
 });
 
 export const createDelivery = async (
@@ -420,7 +468,7 @@ export const getActiveDeliveryForCourier = async (
     .from('delivery_requests')
     .select(courierActiveDeliverySelect)
     .eq('courier_id', courier.id)
-    .eq('status', 'aceita')
+    .in('status', courierActiveStatuses)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle<CourierActiveDeliveryRow>();
@@ -430,4 +478,116 @@ export const getActiveDeliveryForCourier = async (
   }
 
   return data ? toCourierActiveDeliveryState(data) : null;
+};
+
+export const updateDeliveryStatusForCourier = async (
+  deliveryId: string,
+  status: CourierTransitionStatus,
+  domainUserId: string,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<CourierDeliveryStatusState> => {
+  const courier = await resolveOnlineCourier(domainUserId, supabase);
+  const transition = deliveryTransitions[status];
+  const updatePayload = {
+    status,
+    [transition.timestampColumn]: databaseNow,
+  };
+
+  const { data: updated, error: updateError } = await supabase
+    .from('delivery_requests')
+    .update(updatePayload)
+    .eq('id', deliveryId)
+    .eq('courier_id', courier.id)
+    .eq('status', transition.from)
+    .select(courierActiveDeliverySelect)
+    .maybeSingle<CourierActiveDeliveryRow>();
+
+  if (updateError) {
+    console.log(
+      JSON.stringify({
+        event: 'delivery_status_update',
+        delivery_id: deliveryId,
+        courier_id: courier.id,
+        from_status: transition.from,
+        to_status: status,
+        result: 'failed',
+      }),
+    );
+    throw new ApiError(500, 'DELIVERY_STATUS_UPDATE_FAILED', 'Atualizacao de status falhou');
+  }
+
+  if (updated) {
+    console.log(
+      JSON.stringify({
+        event: 'delivery_status_update',
+        delivery_id: deliveryId,
+        courier_id: courier.id,
+        from_status: transition.from,
+        to_status: status,
+        result: 'updated',
+      }),
+    );
+    return toCourierDeliveryStatusState(updated);
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from('delivery_requests')
+    .select(courierActiveDeliverySelect)
+    .eq('id', deliveryId)
+    .eq('courier_id', courier.id)
+    .maybeSingle<CourierActiveDeliveryRow>();
+
+  if (currentError) {
+    console.log(
+      JSON.stringify({
+        event: 'delivery_status_update',
+        delivery_id: deliveryId,
+        courier_id: courier.id,
+        from_status: transition.from,
+        to_status: status,
+        result: 'failed',
+      }),
+    );
+    throw new ApiError(500, 'DELIVERY_STATUS_UPDATE_FAILED', 'Atualizacao de status falhou');
+  }
+
+  if (!current) {
+    console.log(
+      JSON.stringify({
+        event: 'delivery_status_update',
+        delivery_id: deliveryId,
+        courier_id: courier.id,
+        from_status: null,
+        to_status: status,
+        result: 'not_found',
+      }),
+    );
+    throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
+  }
+
+  if (current.status === status) {
+    console.log(
+      JSON.stringify({
+        event: 'delivery_status_update',
+        delivery_id: deliveryId,
+        courier_id: courier.id,
+        from_status: current.status,
+        to_status: status,
+        result: 'idempotent',
+      }),
+    );
+    return toCourierDeliveryStatusState(current);
+  }
+
+  console.log(
+    JSON.stringify({
+      event: 'delivery_status_update',
+      delivery_id: deliveryId,
+      courier_id: courier.id,
+      from_status: current.status,
+      to_status: status,
+      result: 'invalid_transition',
+    }),
+  );
+  throw new ApiError(409, 'INVALID_DELIVERY_TRANSITION', 'Transicao de entrega invalida');
 };

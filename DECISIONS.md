@@ -98,3 +98,14 @@
 **Decisao:** Criar `GET /api/couriers/me/status` e `PATCH /api/couriers/me/status` como contrato operacional separado de entregas. As rotas usam `authenticate -> requireActiveUser -> requireRoles('motoboy')`, derivam o perfil por `couriers.user_id = domainUser.id`, aceitam no PATCH apenas `{ isOnline: boolean }` e retornam somente `{ is_online, updated_at }`. Nenhum `courier_id` vem do client e nenhuma migration/RLS/grant/policy nova e necessaria.
 
 **Consequencias:** O frontend pode pausar chamadas de corrida/fila quando o motoboy esta offline e ligar o fluxo real sem gambiarra. O status online/offline continua sendo disponibilidade operacional simples; localizacao, raio, realtime, push, historico de presenca e transicoes de entrega seguem em ciclos futuros.
+
+## ADR-010 - Transicoes pos-aceite do motoboy via REST
+
+**Data:** 2026-05-16
+**Status:** aceito
+
+**Contexto:** O enum e as colunas de timestamp de `delivery_requests` ja previam `coletada`, `em_transito` e `entregue`, mas o contrato do motoboy parava na corrida `aceita`. A evolucao precisava permitir o avanco operacional sem abrir realtime, push, cron, cancelamento, historico, GPS, migrations ou novas policies.
+
+**Decisao:** Criar `PATCH /api/deliveries/:id/status` com body strict `{ status: 'coletada' | 'em_transito' | 'entregue' }`, protegido por `authenticate -> requireActiveUser -> requireRoles('motoboy')` e `couriers.is_online=true`. O backend deriva `couriers.id` pela sessao, exige entrega atribuida ao proprio courier, valida a maquina `aceita -> coletada -> em_transito -> entregue` e usa update condicional por `id`, `courier_id` e status anterior esperado, setando apenas o timestamp da etapa. Retry do mesmo status e idempotente por releitura curta. `GET /api/deliveries/active` passa a considerar `aceita|coletada|em_transito` e continua excluindo `entregue`.
+
+**Consequencias:** O motoboy consegue avancar a corrida pelo contrato REST minimo, com resposta sanitizada e sem `store_id`/`courier_id`. Como o backend usa service role, filtros server-side seguem obrigatorios. O fluxo ainda nao possui realtime, push, cron, cancelamento, historico, GPS, pagamentos ou Storage; esses temas continuam exigindo ciclos e validadores proprios.

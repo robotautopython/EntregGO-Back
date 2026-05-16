@@ -427,14 +427,14 @@ Fora desta fatia: Realtime, push/Web Push/VAPID, cron de expiracao automatica, c
 
 ### `GET /api/deliveries/active`
 
-Retorna a corrida aceita atual do motoboy autenticado, em modo somente leitura. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo`, perfil em `couriers` e `is_online=true`.
+Retorna a corrida ativa atual do motoboy autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo`, perfil em `couriers` e `is_online=true`.
 
 Query params: nenhum. Qualquer parametro gera `VALIDATION_ERROR`.
 
 Regras:
 
 - Como o backend usa service role (RLS nao se aplica server-side), o isolamento e garantido por filtro explicito `courier_id=<courier.id>` derivado de `couriers.user_id = domainUser.id`.
-- A rota retorna somente entregas com `status='aceita'`; transicoes `coletada`, `em_transito` e `entregue` seguem fora desta fatia.
+- A rota retorna somente entregas com `status in ('aceita','coletada','em_transito')`; `entregue` nao aparece como corrida ativa.
 - A consulta usa `order('created_at', desc)` e `limit(1)` para uma unica corrida ativa.
 - Se nao houver corrida ativa, retorna `200` com `data: null` e mensagem honesta.
 - Pre-aceite continua expondo somente `store.name`/`store.address` no endpoint de descoberta. Pos-aceite, este endpoint pode expor `destination_address` e `notes` apenas ao motoboy ja atribuido a entrega.
@@ -473,7 +473,63 @@ Resposta sem corrida ativa:
 }
 ```
 
-Fora desta fatia: mutation, transicoes de status, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos, Storage, SQL/migration/RLS/grants/policies novos.
+## Entregas Fatia 4A - Motoboy
+
+### `PATCH /api/deliveries/:id/status`
+
+Atualiza a etapa da corrida atribuida ao motoboy autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo`, perfil em `couriers` e `is_online=true`.
+
+Params:
+
+- `id`: UUID da entrega.
+
+Body strict:
+
+```json
+{
+  "status": "coletada"
+}
+```
+
+Valores aceitos para `status`: `coletada`, `em_transito`, `entregue`. Qualquer outro campo, incluindo `courier_id`, `store_id`, `user_id`, `is_online`, `accepted_at`, `collected_at`, `in_transit_at` ou `delivered_at`, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O backend resolve `couriers.id` por `couriers.user_id = domainUser.id`; o client nunca envia identificador de courier, loja ou usuario.
+- A entrega precisa estar atribuida ao proprio courier. Entrega inexistente ou de outro courier retorna `DELIVERY_NOT_FOUND`.
+- Transicoes permitidas:
+  - `aceita -> coletada`, setando `collected_at=now`;
+  - `coletada -> em_transito`, setando `in_transit_at=now`;
+  - `em_transito -> entregue`, setando `delivered_at=now`.
+- O update e condicional por `id`, `courier_id` derivado e status anterior esperado. Transicoes pos-aceite nao usam `expires_at > now()`.
+- Retry do mesmo status e idempotente e retorna o estado atual sem sobrescrever timestamp.
+- A resposta e sanitizada e nunca inclui `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, documentos/Storage, email, tokens, secrets ou timestamps de transicao.
+- Logs operacionais usam apenas `event`, `delivery_id`, `courier_id`, `from_status`, `to_status` e `result`; nao incluem payload, endereco, observacao, token, header ou email.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `COURIER_OFFLINE`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `INVALID_DELIVERY_TRANSITION`, `DELIVERY_STATUS_UPDATE_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "destination_address": "Endereco de destino",
+    "notes": "Observacao opcional",
+    "status": "coletada",
+    "accepted_at": "2026-05-16T12:00:20.000Z",
+    "created_at": "2026-05-16T12:00:00.000Z",
+    "expires_at": "2026-05-16T12:01:00.000Z",
+    "store": {
+      "name": "Nome da loja",
+      "address": "Endereco operacional da loja"
+    }
+  },
+  "message": "Status da entrega atualizado"
+}
+```
+
+Fora desta fatia: cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
 
 ## Admin ainda ausente no backend
 

@@ -10,6 +10,12 @@ export const deliveryStatusValues = [
   'cancelada',
 ] as const;
 
+export const courierDeliveryTransitionStatusValues = [
+  'coletada',
+  'em_transito',
+  'entregue',
+] as const;
+
 export const createDeliverySchema = z
   .object({
     destinationAddress: z.string().trim().max(240).optional(),
@@ -42,6 +48,13 @@ export const deliveryIdParamsSchema = z.object({
   id: z.uuid(),
 });
 
+export const updateDeliveryStatusSchema = z
+  .object({
+    status: z.enum(courierDeliveryTransitionStatusValues),
+  })
+  .strict();
+
 export type ListAvailableDeliveriesQuery = z.infer<typeof listAvailableDeliveriesQuerySchema>;
 export type ActiveDeliveryQuery = z.infer<typeof activeDeliveryQuerySchema>;
 export type DeliveryIdParams = z.infer<typeof deliveryIdParamsSchema>;
+export type UpdateDeliveryStatusInput = z.infer<typeof updateDeliveryStatusSchema>;

@@ -216,6 +216,7 @@ const createActiveDeliveryTable = (result: { data: unknown; error: unknown }) =>
   const builder = {
     select: vi.fn(() => builder),
     eq: vi.fn(() => builder),
+    in: vi.fn(() => builder),
     order: vi.fn(() => builder),
     limit: vi.fn(() => ({
       maybeSingle: vi.fn().mockResolvedValue(result),
@@ -223,6 +224,38 @@ const createActiveDeliveryTable = (result: { data: unknown; error: unknown }) =>
   };
 
   return builder;
+};
+
+const createStatusUpdateDeliveryTable = ({
+  updateResult,
+  currentResult,
+}: {
+  updateResult: { data: unknown; error: unknown };
+  currentResult?: { data: unknown; error: unknown };
+}) => {
+  const updateBuilder = {
+    eq: vi.fn(() => updateBuilder),
+    select: vi.fn(() => ({
+      maybeSingle: vi.fn().mockResolvedValue(updateResult),
+    })),
+  };
+
+  const currentBuilder = {
+    eq: vi.fn(() => currentBuilder),
+    maybeSingle: vi.fn().mockResolvedValue(
+      currentResult ?? {
+        data: null,
+        error: null,
+      },
+    ),
+  };
+
+  return {
+    update: vi.fn(() => updateBuilder),
+    select: vi.fn(() => currentBuilder),
+    updateBuilder,
+    currentBuilder,
+  };
 };
 
 const mockAuthenticatedUser = (domainUser: DomainUser, tables: Record<string, unknown> = {}) => {
@@ -774,6 +807,21 @@ const activeDeliveryState = {
   description: 'Nao expor',
 };
 
+const collectedDeliveryState = {
+  ...activeDeliveryState,
+  status: 'coletada',
+};
+
+const inTransitDeliveryState = {
+  ...activeDeliveryState,
+  status: 'em_transito',
+};
+
+const deliveredDeliveryState = {
+  ...activeDeliveryState,
+  status: 'entregue',
+};
+
 describe('Fatia 1 courier available deliveries', () => {
   beforeEach(() => {
     supabaseMock.getUser.mockReset();
@@ -1023,7 +1071,7 @@ describe('Fatia 2 courier active delivery', () => {
       message: 'Nenhuma corrida ativa encontrada',
     });
     expect(activeTable.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
-    expect(activeTable.eq).toHaveBeenCalledWith('status', 'aceita');
+    expect(activeTable.in).toHaveBeenCalledWith('status', ['aceita', 'coletada', 'em_transito']);
   });
 
   it('returns only the active delivery assigned to the authenticated courier', async () => {
@@ -1063,7 +1111,7 @@ describe('Fatia 2 courier active delivery', () => {
       'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)',
     );
     expect(activeTable.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
-    expect(activeTable.eq).toHaveBeenCalledWith('status', 'aceita');
+    expect(activeTable.in).toHaveBeenCalledWith('status', ['aceita', 'coletada', 'em_transito']);
     expect(activeTable.order).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(activeTable.limit).toHaveBeenCalledWith(1);
     expect(response.body.data).not.toHaveProperty('store_id');
@@ -1074,6 +1122,30 @@ describe('Fatia 2 courier active delivery', () => {
     expect(response.body.data).not.toHaveProperty('collected_at');
     expect(response.body.data).not.toHaveProperty('in_transit_at');
     expect(response.body.data).not.toHaveProperty('delivered_at');
+  });
+
+  it('keeps the active delivery status returned by the database', async () => {
+    const activeTable = createActiveDeliveryTable({
+      data: {
+        ...activeDeliveryState,
+        status: 'coletada',
+      },
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: activeTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/active')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(200);
+
+    expect(response.body.data.status).toBe('coletada');
   });
 
   it('rejects unknown query parameters on active delivery lookup', async () => {
@@ -1101,6 +1173,333 @@ describe('Fatia 2 courier active delivery', () => {
     });
     expect(couriersTable.select).not.toHaveBeenCalled();
     expect(activeTable.select).not.toHaveBeenCalled();
+  });
+});
+
+describe('Fatia 4A courier delivery status transitions', () => {
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+  });
+
+  it('rejects status transition without a bearer token', async () => {
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .send({ status: 'coletada' })
+      .expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it('rejects status transition from non-couriers', async () => {
+    mockAuthenticatedUser(activeStoreUser);
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer store-token')
+      .send({ status: 'coletada' })
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it.each([
+    [pendingCourierUser, 'USER_PENDING'],
+    [blockedCourierUser, 'USER_BLOCKED'],
+  ])('rejects status transition for courier users with status %s', async (domainUser, code) => {
+    mockAuthenticatedUser(domainUser);
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer courier-token')
+      .send({ status: 'coletada' })
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code },
+    });
+  });
+
+  it('requires the courier to be online before status transition', async () => {
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: offlineCourierProfile,
+        error: null,
+      }),
+    });
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer courier-token')
+      .send({ status: 'coletada' })
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'COURIER_OFFLINE' },
+    });
+  });
+
+  it.each([
+    { courier_id: courierProfile.id },
+    { store_id: storeProfile.id },
+    { user_id: activeCourierUser.id },
+    { is_online: true },
+    { accepted_at: '2026-05-16T12:00:20.000Z' },
+    { collected_at: '2026-05-16T12:01:00.000Z' },
+    { in_transit_at: '2026-05-16T12:02:00.000Z' },
+    { delivered_at: '2026-05-16T12:03:00.000Z' },
+    { unknown: 'forbidden' },
+  ])('rejects forbidden transition payload fields: %s', async (forbiddenField) => {
+    const couriersTable = createSelectSingleTable({
+      data: courierProfile,
+      error: null,
+    });
+    const updateTable = createStatusUpdateDeliveryTable({
+      updateResult: { data: collectedDeliveryState, error: null },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: couriersTable,
+      delivery_requests: updateTable,
+    });
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer courier-token')
+      .send({
+        status: 'coletada',
+        ...forbiddenField,
+      })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(couriersTable.select).not.toHaveBeenCalled();
+    expect(updateTable.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['coletada', 'aceita', 'collected_at', collectedDeliveryState],
+    ['em_transito', 'coletada', 'in_transit_at', inTransitDeliveryState],
+    ['entregue', 'em_transito', 'delivered_at', deliveredDeliveryState],
+  ] as const)(
+    'updates %s only from %s and returns a sanitized state',
+    async (targetStatus, previousStatus, timestampColumn, returnedState) => {
+      const updateTable = createStatusUpdateDeliveryTable({
+        updateResult: {
+          data: returnedState,
+          error: null,
+        },
+      });
+      mockAuthenticatedUser(activeCourierUser, {
+        couriers: createSelectSingleTable({
+          data: courierProfile,
+          error: null,
+        }),
+        delivery_requests: updateTable,
+      });
+
+      const response = await request(app)
+        .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+        .set('Authorization', 'Bearer courier-token')
+        .send({ status: targetStatus })
+        .expect(200);
+
+      expect(updateTable.update).toHaveBeenCalledWith({
+        status: targetStatus,
+        [timestampColumn]: 'now',
+      });
+      expect(updateTable.updateBuilder.eq).toHaveBeenCalledWith('id', deliveryRequest.id);
+      expect(updateTable.updateBuilder.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
+      expect(updateTable.updateBuilder.eq).toHaveBeenCalledWith('status', previousStatus);
+      expect(updateTable.updateBuilder.select).toHaveBeenCalledWith(
+        'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)',
+      );
+      expect(updateTable.select).not.toHaveBeenCalled();
+      expect(response.body).toMatchObject({
+        success: true,
+        data: {
+          id: deliveryRequest.id,
+          status: targetStatus,
+          destination_address: activeDeliveryState.destination_address,
+          notes: activeDeliveryState.notes,
+          store: storeSummary,
+        },
+        message: 'Status da entrega atualizado',
+      });
+      expect(response.body.data).not.toHaveProperty('store_id');
+      expect(response.body.data).not.toHaveProperty('courier_id');
+      expect(response.body.data).not.toHaveProperty('owner_name');
+      expect(response.body.data).not.toHaveProperty('logo_url');
+      expect(response.body.data).not.toHaveProperty('description');
+      expect(response.body.data).not.toHaveProperty('collected_at');
+      expect(response.body.data).not.toHaveProperty('in_transit_at');
+      expect(response.body.data).not.toHaveProperty('delivered_at');
+      expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toEqual({
+        event: 'delivery_status_update',
+        delivery_id: deliveryRequest.id,
+        courier_id: courierProfile.id,
+        from_status: previousStatus,
+        to_status: targetStatus,
+        result: 'updated',
+      });
+    },
+  );
+
+  it('returns the current state when retrying the same status without overwriting timestamps', async () => {
+    const updateTable = createStatusUpdateDeliveryTable({
+      updateResult: {
+        data: null,
+        error: null,
+      },
+      currentResult: {
+        data: collectedDeliveryState,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: updateTable,
+    });
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer courier-token')
+      .send({ status: 'coletada' })
+      .expect(200);
+
+    expect(updateTable.updateBuilder.eq).toHaveBeenCalledWith('status', 'aceita');
+    expect(updateTable.currentBuilder.eq).toHaveBeenCalledWith('id', deliveryRequest.id);
+    expect(updateTable.currentBuilder.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
+    expect(response.body.data.status).toBe('coletada');
+    expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toMatchObject({
+      result: 'idempotent',
+      from_status: 'coletada',
+      to_status: 'coletada',
+    });
+  });
+
+  it('rejects invalid transition order', async () => {
+    const updateTable = createStatusUpdateDeliveryTable({
+      updateResult: {
+        data: null,
+        error: null,
+      },
+      currentResult: {
+        data: activeDeliveryState,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: updateTable,
+    });
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer courier-token')
+      .send({ status: 'entregue' })
+      .expect(409);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'INVALID_DELIVERY_TRANSITION' },
+    });
+    expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toMatchObject({
+      result: 'invalid_transition',
+      from_status: 'aceita',
+      to_status: 'entregue',
+    });
+  });
+
+  it('returns DELIVERY_NOT_FOUND for missing or unassigned-to-this-courier deliveries', async () => {
+    const updateTable = createStatusUpdateDeliveryTable({
+      updateResult: {
+        data: null,
+        error: null,
+      },
+      currentResult: {
+        data: null,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: updateTable,
+    });
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer courier-token')
+      .send({ status: 'coletada' })
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_NOT_FOUND' },
+    });
+    expect(updateTable.currentBuilder.eq).toHaveBeenCalledWith('id', deliveryRequest.id);
+    expect(updateTable.currentBuilder.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
+  });
+
+  it('returns a standardized failure when the conditional update fails', async () => {
+    const updateTable = createStatusUpdateDeliveryTable({
+      updateResult: {
+        data: null,
+        error: { message: 'db down' },
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: updateTable,
+    });
+
+    const response = await request(app)
+      .patch(`/api/deliveries/${deliveryRequest.id}/status`)
+      .set('Authorization', 'Bearer courier-token')
+      .send({ status: 'coletada' })
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_STATUS_UPDATE_FAILED' },
+    });
+    expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toEqual({
+      event: 'delivery_status_update',
+      delivery_id: deliveryRequest.id,
+      courier_id: courierProfile.id,
+      from_status: 'aceita',
+      to_status: 'coletada',
+      result: 'failed',
+    });
   });
 });
 

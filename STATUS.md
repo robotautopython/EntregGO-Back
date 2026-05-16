@@ -8,16 +8,16 @@
 
 ## Em Andamento
 
-- [ ] Manter dashboards, pagamentos, documentos, historico admin, historico do motoboy, realtime, push, cron, cancelamento e status pos-aceite como escopo futuro ate validacao de Security/Performance.
+- [ ] Manter dashboards, pagamentos, documentos, historico admin, historico do motoboy, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
-- [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, transicoes pos-aceite e historico do motoboy.
-- [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push, polling/listas grandes e status pos-aceite.
-- [ ] Especificar proximo marco de entregas sem antecipar realtime, push, cron, cancelamento, status pos-aceite ou historico admin.
+- [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento e historico do motoboy.
+- [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
+- [ ] Especificar proximo marco de entregas sem antecipar realtime, push, cron, cancelamento ou historico admin.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
-- [ ] Planejar detalhe, historico e transicoes pos-aceite do motoboy sem quebrar o contrato PII da Fatia 1.
+- [ ] Planejar detalhe e historico do motoboy sem quebrar o contrato PII da Fatia 1.
 
 ## Concluido
 
@@ -64,20 +64,21 @@
 - [x] Fatia 2 motoboy validada pos-deploy em producao: backend `af4d0df` e frontend `53a8e72` publicados; smoke publico confirmou `GET /api/deliveries/active` sem token com `401 AUTH_REQUIRED`, `/motoboy` com `200` e bundle contendo `/api/deliveries/active`; smoke autenticado validou que o motoboy ve somente sua corrida `aceita`, outro motoboy recebe `data: null`, offline/pendente/bloqueado/role errado sao negados, PII pre-aceite segue limitada a `store.name`/`store.address`, PII pos-aceite (`destination_address`/`notes`) aparece apenas para o courier atribuido e cleanup completo.
 - [x] Fatia 3 motoboy implementada localmente: `GET /api/couriers/me/status` e `PATCH /api/couriers/me/status` permitem ao motoboy ativo consultar/alterar seu proprio `is_online`, sempre derivando `couriers.user_id` da sessao e retornando somente `{ is_online, updated_at }`. Sem `courier_id` no client, sem PII nova, sem SQL/migration/RLS/grants/policies. Gates ImpactValidator + SecurityValidator aprovados; backend `typecheck` e `test` (85) passaram durante a implementacao.
 - [x] Fatia 3 motoboy validada pos-deploy em producao: backend `001a1c6` e frontend `3201d77` publicados. Smoke publico confirmou `GET` e `PATCH /api/couriers/me/status` sem token com `401 AUTH_REQUIRED`, `/motoboy` com `200` e bundle contendo `/api/couriers/me/status`. Smoke autenticado com dados ficticios temporarios confirmou motoboy ativo iniciando `is_online=false`, resposta de status somente `{ is_online, updated_at }`, `/api/deliveries/active` negado offline com `COURIER_OFFLINE`, `PATCH true/false`, active online com fixture aceita, payloads proibidos com `VALIDATION_ERROR`, role errada/pendente/bloqueado negados, UI sem chamada a `/active` ou `/available` antes de ficar online e cleanup completo.
+- [x] Fatia 4A motoboy implementada localmente: `PATCH /api/deliveries/:id/status` permite transicoes `aceita -> coletada -> em_transito -> entregue` para o courier atribuido, com `courier_id` derivado da sessao, body strict, update condicional por status anterior, idempotencia para retry do mesmo status, logs sem PII e resposta sanitizada sem `store_id`/`courier_id`. `GET /api/deliveries/active` passou a considerar `aceita|coletada|em_transito` e excluir `entregue`. Sem SQL/migration/RLS/grants/policies, sem realtime/push/cron/cancelamento. Gates ImpactValidator, SecurityValidator, PerformanceValidator e TestEngineer aprovados antes da implementacao; backend `typecheck`, `test` (107), `lint`, `build` e `git diff --check` passaram.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas, cancelamento ou transicoes pos-aceite. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite e o status online/offline real existem, mas ainda sem realtime/push.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real e as transicoes pos-aceite REST existem, mas ainda sem realtime/push.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
 - Abas admin de documentos, entregas, pagamentos e notas seguem bloqueadas por falta de backend, schema/auditoria ou validadores especializados.
-- A visao demo de corrida do motoboy (`CorridaAtiva.tsx`) permanece mock e isolada em `?demo=`; o caminho padrao `/motoboy` usa fila real e leitura real da corrida `aceita`. Transicoes pos-aceite dependem de contrato backend e ciclo proprio com SecurityValidator/PerformanceValidator. Nao tratar como ajuste cosmetico.
+- A visao demo de corrida do motoboy (`CorridaAtiva.tsx`) permanece mock e isolada em `?demo=`; o caminho padrao `/motoboy` usa fila real, leitura real da corrida ativa e transicoes pos-aceite REST. Nao misturar mock/demo com dado real.
 
 ## Saude do Projeto
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (inclui Vitest/RTL da Fatia 2)
+**Testes:** passando no backend e frontend (inclui Vitest/RTL da Fatia 4A)
 **Deploy:** frontend e backend publicados em Vercel
 **Riscos abertos:** 4
