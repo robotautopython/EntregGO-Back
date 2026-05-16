@@ -181,6 +181,67 @@ Para `role=motoboy`, `profile` contem apenas `id`, `user_id`, `full_name`, `is_o
 
 Campos de Storage e documentos (`logo_url`, `bike_photo_url`, `license_photo_url`) nao fazem parte deste contrato.
 
+## Motoboy Fatia 3 - Status operacional
+
+### `GET /api/couriers/me/status`
+
+Retorna o status operacional do motoboy autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy` e `status=ativo`.
+
+Query params: nenhum. Qualquer parametro gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O backend resolve o perfil por `couriers.user_id = domainUser.id`; o client nunca envia `courier_id`.
+- A resposta e sanitizada e nao inclui `id`, `user_id`, nome, documentos, Storage, entregas ou dados de loja.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `VALIDATION_ERROR`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "is_online": false,
+    "updated_at": "2026-05-16T12:00:00.000Z"
+  },
+  "message": "Status operacional encontrado"
+}
+```
+
+### `PATCH /api/couriers/me/status`
+
+Atualiza o status operacional do motoboy autenticado. Exige os mesmos guards de `GET /api/couriers/me/status`.
+
+Body strict:
+
+```json
+{
+  "isOnline": true
+}
+```
+
+Regras:
+
+- Apenas `isOnline: boolean` e aceito; `is_online`, `courier_id`, `user_id` ou qualquer outro campo geram `VALIDATION_ERROR`.
+- O backend deriva o perfil por `couriers.user_id = domainUser.id`, atualiza somente `couriers.is_online` e retorna o status sanitizado.
+- Nao ha SQL, migration, RLS, grant ou policy novos nesta fatia.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `VALIDATION_ERROR`, `COURIER_STATUS_UPDATE_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "is_online": true,
+    "updated_at": "2026-05-16T12:01:00.000Z"
+  },
+  "message": "Status operacional atualizado"
+}
+```
+
+Fora desta fatia: localizacao/GPS, disponibilidade por raio, realtime, push, cron, historico de presenca, transicoes de entrega, cancelamento, pagamentos, Storage e documentos.
+
 ## Entregas M-04A
 
 ### `POST /api/deliveries`

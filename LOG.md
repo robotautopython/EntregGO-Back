@@ -425,3 +425,17 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes pos-deploy:** Smoke publico confirmou `GET /api/deliveries/active` sem token -> `401 AUTH_REQUIRED`, frontend `/motoboy` -> `200` e bundle publicado contendo `/api/deliveries/active`. Smoke autenticado confirmou que o motoboy dono ve sua propria corrida `aceita` em modo somente leitura, com `destination_address` e `notes` apenas pos-aceite; outro motoboy recebe `data: null`; motoboy offline retorna `COURIER_OFFLINE`; pendente retorna `USER_PENDING`; bloqueado retorna `USER_BLOCKED`; role errado retorna `FORBIDDEN_ROLE`. A listagem pre-aceite continuou sem `destination_address`, `notes`, `store_id` ou `courier_id`, expondo apenas `store.name` e `store.address`. Cleanup retornou `completed`. Nenhum SQL, migration, RLS, grant ou policy foi executado ou alterado.
 
 **Fora do escopo preservado:** mutation/transicoes `coletada`/`em_transito`/`entregue`, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos, Storage e dados operacionais adicionais.
+
+## 2026-05-16 - FATIA 3 MOTOBOY STATUS OPERACIONAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementado localmente o contrato real de online/offline do motoboy. O backend ganhou `GET /api/couriers/me/status` e `PATCH /api/couriers/me/status`, ambos protegidos por `authenticate`, `requireActiveUser` e `requireRoles('motoboy')`. O perfil e sempre derivado por `couriers.user_id = domainUser.id`; o PATCH aceita body strict `{ isOnline: boolean }`, atualiza somente `is_online` e retorna apenas `{ is_online, updated_at }`. Nenhum `courier_id` vem do client e nenhum campo de nome/documento/Storage/entrega/loja entra na resposta. Nenhum SQL, migration, RLS, grant ou policy foi criado ou alterado.
+**Arquivos modificados (backend):** `src/app.ts`, `src/routes/courier.routes.ts`, `src/controllers/courier.controller.ts`, `src/services/courier.service.ts`, `src/validators/courier.validators.ts`, `tests/courier-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `DECISIONS.md`, `LEARNINGS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, TestEngineer, Documentador
+**Status:** fechado localmente; deploy/smoke de producao pendentes
+
+**Gates:** ImpactValidator aprovado (mudanca aditiva, contrato novo, sem schema/infra, front tratado em fatia cruzada); SecurityValidator aprovado (auth/role/status existentes, perfil derivado da sessao, body strict, resposta sem PII/secrets, sem logs sensiveis).
+
+**Validacoes:** Backend `npm run typecheck` passou. Backend `npm test` passou com 7 arquivos e 85 testes. Nenhum secret, token, cookie ou header sensivel foi impresso.
+
+**Fora do escopo:** localizacao/GPS, disponibilidade por raio, realtime, push/Web Push/VAPID, cron, historico de presenca, transicoes pos-aceite, cancelamento, pagamentos, Storage e documentos.

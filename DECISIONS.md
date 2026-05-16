@@ -87,3 +87,14 @@
 **Decisao:** Criar `GET /api/deliveries/active` como endpoint somente leitura, protegido pelos mesmos guards do motoboy ativo/online. O backend resolve `couriers.id` pela sessao, filtra `delivery_requests` por `courier_id=<courier.id>` e `status='aceita'`, ordena por `created_at desc`, limita a 1 e retorna `data: null` quando nao houver corrida ativa. O contrato pos-aceite permite `destination_address` e `notes` somente para o motoboy ja atribuido; segue proibido retornar `store_id`, `courier_id`, Storage/documentos, dados de dono da loja e campos de transicao. Sem mutation, SQL, migration, RLS, grant ou policy.
 
 **Consequencias:** A UI pode substituir a confirmacao estatica por uma tela real somente leitura apos o aceite e ao carregar `/motoboy`. Como service role ignora RLS, o filtro por `courier_id` continua sendo obrigatorio no servidor. Transicoes (`coletada`, `em_transito`, `entregue`), cancelamento, realtime, push, cron e historico do motoboy permanecem em ciclos proprios com novos gates.
+
+## ADR-009 - Status operacional do motoboy como contrato proprio
+
+**Data:** 2026-05-16
+**Status:** aceito
+
+**Contexto:** O contrato de descoberta/aceite e corrida ativa exige `couriers.is_online=true`, mas novos perfis de motoboy nascem offline por padrao e ainda nao havia rota real para o proprio motoboy alterar esse estado. Isso fazia `/motoboy` depender de ajuste manual no banco ou smoke operacional.
+
+**Decisao:** Criar `GET /api/couriers/me/status` e `PATCH /api/couriers/me/status` como contrato operacional separado de entregas. As rotas usam `authenticate -> requireActiveUser -> requireRoles('motoboy')`, derivam o perfil por `couriers.user_id = domainUser.id`, aceitam no PATCH apenas `{ isOnline: boolean }` e retornam somente `{ is_online, updated_at }`. Nenhum `courier_id` vem do client e nenhuma migration/RLS/grant/policy nova e necessaria.
+
+**Consequencias:** O frontend pode pausar chamadas de corrida/fila quando o motoboy esta offline e ligar o fluxo real sem gambiarra. O status online/offline continua sendo disponibilidade operacional simples; localizacao, raio, realtime, push, historico de presenca e transicoes de entrega seguem em ciclos futuros.

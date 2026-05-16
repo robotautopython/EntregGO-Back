@@ -236,3 +236,21 @@ Ao evoluir dados entre atores, documentar explicitamente qual estado da entrega 
 
 ### Impacto no projeto
 Fatia 2 entrega destino/notas ao motoboy certo sem abrir realtime, push, transicoes, historico ou novas policies.
+
+## 2026-05-16 - Online/offline e contrato operacional, nao entrega
+
+**Tipo:** Padrao
+**Fase:** fundacao/auth-operacao
+**Contexto:** Fatia 3 do motoboy, status operacional real.
+
+### O que aconteceu
+`GET /api/deliveries/active` retornava `COURIER_OFFLINE` em producao porque `couriers.is_online` nasce `false` e o frontend real ainda nao tinha caminho para alterar esse estado. O problema parecia erro na rota de entregas, mas a causa estava no contrato operacional ausente.
+
+### Por que funciona
+Separar `GET/PATCH /api/couriers/me/status` de `deliveries` mantem a semantica limpa: o motoboy altera sua disponibilidade, e so depois os endpoints de entrega podem exigir `is_online=true`. O backend deriva `couriers.user_id` da sessao e retorna apenas `{ is_online, updated_at }`, sem PII nova.
+
+### O que fazer diferente da proxima vez
+Quando uma guard de negocio depende de um estado mutavel (`is_online`, aprovado, bloqueado, disponibilidade), garantir que exista contrato seguro para o proprio ator operar esse estado antes de ligar telas que dependem dele. Evitar workaround manual no banco em producao.
+
+### Impacto no projeto
+`/motoboy` pode pausar chamadas de corrida/fila quando offline e ligar o fluxo real sem consultar endpoints que vao negar por design. Realtime, push, localizacao, historico de presenca e transicoes de entrega continuam fora de escopo.
