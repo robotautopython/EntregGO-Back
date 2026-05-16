@@ -53,6 +53,7 @@
 - [x] M-04A validado pos-migration no Supabase alvo: smoke Auth/RLS real confirmou criacao de entrega por `logista` ativo, negacoes por role/status, RLS de `delivery_requests` e cleanup completo.
 - [x] M-04C implementado localmente: `destinationAddress` opcional no contrato de criacao de entrega, migration nullable para `delivery_requests.destination_address`, payload restrito e docs cross-stack atualizadas.
 - [x] M-04C validado pos-migration no Supabase alvo: SQL aplicado com sucesso e smoke Auth/RLS real confirmou criacao sem endereco com `destination_address=null`, negacoes por role/status, payload derivado rejeitado e cleanup completo.
+- [x] M-04C validada pos-deploy em producao: smoke publico confirmou `401 AUTH_REQUIRED` sem token, frontend `/loja/nova-entrega` `200` e bundle com payload minimo; smoke autenticado criou entrega com payload `{}`, `destination_address=null`, `status=aguardando`, `courier_id=null` e cleanup completo, sem SQL adicional nem exposicao de secrets.
 
 ## Bloqueios
 
