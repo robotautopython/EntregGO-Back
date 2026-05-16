@@ -6,3 +6,7 @@ dist/
 npm-debug.log*
 .vercel/
 coverage/
+
+# Local agent/prompt workspaces. Keep out of commits.
+.codex/
+.code/
