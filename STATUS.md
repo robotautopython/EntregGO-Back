@@ -3,18 +3,18 @@
 ## Estado Atual
 
 **Fase:** fundacao/auth-operacao
-**Ultima atualizacao:** 2026-05-15
+**Ultima atualizacao:** 2026-05-16
 **Atualizado por:** Codex/Camisa10
 
 ## Em Andamento
 
-- [ ] Manter dashboards, pagamentos, documentos e historico de entregas como escopo futuro ate validacao de Security/Performance.
+- [ ] Manter dashboards, pagamentos, documentos, historico admin e historico do motoboy como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
 - [ ] Rodar validadores de seguranca antes de auth real, uploads, policies RLS finais e push.
 - [ ] Rodar validadores de performance antes de aceite concorrente real, cron, queries de dashboard e realtime.
-- [ ] Aplicar smoke real e deploy do M-05; integrar frontend do historico da loja ao `GET /api/deliveries` removendo mock, busca textual e dados de motoboy.
+- [ ] Especificar proximo marco de entregas sem antecipar aceite concorrente, pool de motoboys, realtime, push, cron ou historico admin.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
@@ -55,6 +55,7 @@
 - [x] M-04C validado pos-migration no Supabase alvo: SQL aplicado com sucesso e smoke Auth/RLS real confirmou criacao sem endereco com `destination_address=null`, negacoes por role/status, payload derivado rejeitado e cleanup completo.
 - [x] M-04C validada pos-deploy em producao: smoke publico confirmou `401 AUTH_REQUIRED` sem token, frontend `/loja/nova-entrega` `200` e bundle com payload minimo; smoke autenticado criou entrega com payload `{}`, `destination_address=null`, `status=aguardando`, `courier_id=null` e cleanup completo, sem SQL adicional nem exposicao de secrets.
 - [x] M-05 implementado localmente no backend: `GET /api/deliveries` lista entregas somente da loja autenticada com `store_id` derivado da sessao, schema strict de query (`page`/`limit<=50`/`status`), ordem `created_at desc`, resposta sem `store_id`/`courier_id`, sem migration/RLS; `typecheck`, `test` (49), `lint`, `build` e `git diff --check` passaram.
+- [x] M-05 validada pos-deploy em producao: backend `f30bfc7` e frontend `6833695` publicados; smoke publico confirmou `GET`/`POST /api/deliveries` sem token com `401 AUTH_REQUIRED` e `/loja/historico` com `200`; smoke autenticado contra `https://entreggoback.vercel.app` validou listagem da propria loja, isolamento multi-tenant, filtro `status=aceita`, paginacao, validacoes negativas, ausencia de `store_id`/`courier_id` e cleanup completo, sem SQL/migration/RLS/grants/policies nem exposicao de secrets.
 
 ## Bloqueios
 

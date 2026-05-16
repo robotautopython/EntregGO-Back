@@ -140,3 +140,24 @@ Para qualquer leitura/escrita server-side com service role, tratar a RLS apenas 
 
 ### Impacto no projeto
 Listagem M-05 entregue com isolamento multi-tenant verificado por teste, sem migration/RLS, mantendo aceite, realtime, push, cron, historico e detalhe unico fora de escopo.
+
+## 2026-05-16 - Smoke pos-deploy autenticado deve apontar explicitamente para producao
+
+**Tipo:** Padrao
+**Fase:** fundacao/auth-operacao
+**Contexto:** Fechamento pos-deploy da M-05 com `GET /api/deliveries`.
+
+### O que aconteceu
+O smoke Auth/RLS validava corretamente dados reais e sessoes reais, mas por padrao subia a API buildada localmente. Isso provava o codigo local e o banco, mas nao fechava sozinho o deploy da Vercel.
+
+### Por que aconteceu
+Smokes que nasceram para pos-migration local tendem a acoplar criacao de dados reais com API local. Quando o objetivo vira pos-deploy, o mesmo fluxo precisa apontar para a URL publicada sem imprimir credenciais.
+
+### Como foi resolvido
+`scripts/smoke-auth-rls.mjs` passou a aceitar `SMOKE_API_BASE_URL`; quando a variavel existe, o script usa a API externa e nao sobe servidor local. Sem a variavel, o comportamento local continua igual.
+
+### O que fazer diferente da proxima vez
+Todo smoke reutilizavel deve declarar explicitamente o alvo validado: API local, ambiente de producao ou ambos. Fechamento pos-deploy so deve ser registrado depois de chamada autenticada contra a URL publicada.
+
+### Impacto no projeto
+A M-05 foi fechada contra producao sem expor tokens, cookies, headers ou secrets, e o script ficou reaproveitavel para proximos smokes pos-deploy.

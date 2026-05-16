@@ -206,7 +206,20 @@ const createAuthenticatedClient = async (email, password) => {
   };
 };
 
+const normalizeApiBaseUrl = (value) => {
+  const baseUrl = value.trim().replace(/\/+$/, '');
+  assert(/^https?:\/\/.+/.test(baseUrl), 'SMOKE_API_BASE_URL format invalid');
+  return baseUrl;
+};
+
 const startApi = async () => {
+  if (process.env.SMOKE_API_BASE_URL?.trim()) {
+    return {
+      baseUrl: normalizeApiBaseUrl(process.env.SMOKE_API_BASE_URL),
+      close: async () => {},
+    };
+  }
+
   const appPath = path.join(backendRoot, 'dist', 'src', 'app.js');
   assert(existsSync(appPath), 'Backend build missing. Run npm run build before smoke.');
 
@@ -473,7 +486,7 @@ const main = async () => {
     const pendingSession = await createAuthenticatedClient(pendingAuth.email, password);
     const courierSession = await createAuthenticatedClient(courierAuth.email, password);
 
-    logStep('starting local API from built backend');
+    logStep('preparing API target');
     apiServer = await startApi();
 
     const meBody = await expectApiStatus(
@@ -540,6 +553,115 @@ const main = async () => {
       service,
       assignableDelivery.id,
       courierProfile.id,
+    );
+
+    logStep('validating M-05 GET /api/deliveries store listing');
+
+    const otherStoreDelivery = await createDeliveryRequest(
+      service,
+      pendingStoreProfile.id,
+      stamp,
+      { notes: 'Entrega de outra loja - nao deve aparecer no historico' },
+    );
+
+    const listBody = await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries',
+      storeSession.accessToken,
+      200,
+    );
+    assert(listBody?.success === true, 'Delivery list did not return success');
+    assert(listBody?.message === 'Entregas encontradas', 'Delivery list message mismatch');
+    assert(Array.isArray(listBody.data?.items), 'Delivery list items is not an array');
+    assert(
+      typeof listBody.data?.pagination?.page === 'number' &&
+        typeof listBody.data?.pagination?.limit === 'number' &&
+        typeof listBody.data?.pagination?.total === 'number',
+      'Delivery list pagination shape invalid',
+    );
+    const listIds = listBody.data.items.map((item) => item.id);
+    assert(
+      listIds.includes(deliveryBody.data.id) && listIds.includes(assignedDelivery.id),
+      'Store did not see its own delivery requests',
+    );
+    assert(
+      !listIds.includes(otherStoreDelivery.id),
+      'Store saw a delivery request from another store',
+    );
+    for (const item of listBody.data.items) {
+      assert(
+        !('store_id' in item) && !('courier_id' in item),
+        'Delivery list item leaked store_id or courier_id',
+      );
+    }
+    const orderedDesc = listBody.data.items.every(
+      (item, index, arr) => index === 0 || arr[index - 1].created_at >= item.created_at,
+    );
+    assert(orderedDesc, 'Delivery list is not ordered by created_at desc');
+
+    const acceptedList = await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries?status=aceita',
+      storeSession.accessToken,
+      200,
+    );
+    assert(
+      acceptedList.data.items.length >= 1 &&
+        acceptedList.data.items.every((item) => item.status === 'aceita') &&
+        acceptedList.data.items.some((item) => item.id === assignedDelivery.id) &&
+        acceptedList.data.items.every((item) => item.id !== deliveryBody.data.id),
+      'Status filter aceita did not return only accepted own deliveries',
+    );
+
+    const pagedList = await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries?page=1&limit=1',
+      storeSession.accessToken,
+      200,
+    );
+    assert(
+      pagedList.data.pagination.page === 1 &&
+        pagedList.data.pagination.limit === 1 &&
+        pagedList.data.items.length <= 1,
+      'Delivery list pagination did not respect page/limit',
+    );
+
+    await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries?limit=51',
+      storeSession.accessToken,
+      400,
+    );
+    await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries?status=invalido',
+      storeSession.accessToken,
+      400,
+    );
+    await expectApiStatus(
+      apiServer.baseUrl,
+      `/api/deliveries?store_id=${storeProfile.id}`,
+      storeSession.accessToken,
+      400,
+    );
+
+    await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries',
+      pendingSession.accessToken,
+      403,
+    );
+    await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries',
+      courierSession.accessToken,
+      403,
+    );
+    await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries',
+      adminSession.accessToken,
+      403,
     );
 
     await expectApiStatus(
