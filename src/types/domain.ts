@@ -60,6 +60,10 @@ export interface DeliveryRequest {
   updated_at: string;
 }
 
+export interface AdminUserListItem extends DomainUser {
+  store_name: string | null;
+}
+
 export interface AdminStoreProfile {
   id: string;
   user_id: string;

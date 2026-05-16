@@ -7,6 +7,7 @@ import type {
   AdminCourierProfile,
   AdminStoreProfile,
   AdminUserDetail,
+  AdminUserListItem,
   DomainUser,
   UserRole,
   UserStatus,
@@ -16,6 +17,10 @@ import type { AdminListUsersQuery } from '../validators/admin.validators.js';
 
 const domainUserSelect =
   'id,auth_id,email,role,status,approved_at,approved_by,created_at,updated_at';
+// Embed da loja (relacao 1:1 stores.user_id unique -> users.id) para a
+// listagem admin. Mantem uma unica query (sem N+1) e expoe apenas o nome,
+// que ja e visivel ao admin no detalhe; nenhum campo de Storage/PII novo.
+const adminUserListSelect = `${domainUserSelect},stores(name)`;
 const adminStoreProfileSelect =
   'id,user_id,name,owner_name,address,description,created_at,updated_at';
 const adminCourierProfileSelect = 'id,user_id,full_name,is_online,created_at,updated_at';
@@ -25,13 +30,39 @@ const userStatuses = ['pendente', 'ativo', 'bloqueado'] as const satisfies reado
 const latestPendingUsersLimit = 5;
 
 export interface PaginatedUsers {
-  items: DomainUser[];
+  items: AdminUserListItem[];
   pagination: {
     page: number;
     limit: number;
     total: number;
   };
 }
+
+const extractStoreName = (row: unknown): string | null => {
+  if (!row || typeof row !== 'object') {
+    return null;
+  }
+
+  const relation = (row as { stores?: unknown }).stores;
+
+  if (!relation) {
+    return null;
+  }
+
+  const record = Array.isArray(relation) ? relation[0] : relation;
+  const name = (record as { name?: unknown } | undefined)?.name;
+
+  return typeof name === 'string' ? name : null;
+};
+
+const toAdminUserListItem = (row: Record<string, unknown>): AdminUserListItem => {
+  const { stores: _stores, ...domain } = row;
+
+  return {
+    ...(domain as unknown as DomainUser),
+    store_name: extractStoreName(row),
+  };
+};
 
 const createEmptyUserCounts = (): AdminInsights['user_counts'] => ({
   admin: {
@@ -137,7 +168,7 @@ export const listUsers = async (
   const offset = (input.page - 1) * input.limit;
   let query = supabase
     .from('users')
-    .select(domainUserSelect, { count: 'exact' })
+    .select(adminUserListSelect, { count: 'exact' })
     .order('created_at', { ascending: false });
 
   if (input.role) {
@@ -159,7 +190,7 @@ export const listUsers = async (
   }
 
   return {
-    items: (data ?? []) as DomainUser[],
+    items: ((data ?? []) as Record<string, unknown>[]).map(toAdminUserListItem),
     pagination: {
       page: input.page,
       limit: input.limit,

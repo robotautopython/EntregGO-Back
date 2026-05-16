@@ -558,3 +558,109 @@ describe('admin user detail route', () => {
     });
   });
 });
+
+const createAdminUsersListTable = ({
+  authUser,
+  rows,
+  count,
+}: {
+  authUser: DomainUser;
+  rows: Record<string, unknown>[];
+  count: number;
+}) => {
+  const select = vi.fn((_columns: string, options?: { count?: string }) => {
+    if (options?.count === 'exact') {
+      const builder = {
+        eq: vi.fn(() => builder),
+        ilike: vi.fn(() => builder),
+        order: vi.fn(() => builder),
+        range: vi.fn().mockResolvedValue({ data: rows, error: null, count }),
+      };
+      return builder;
+    }
+
+    return {
+      eq: vi.fn(() => ({
+        single: vi.fn().mockResolvedValue({ data: authUser, error: null }),
+      })),
+    };
+  });
+
+  return { select };
+};
+
+describe('admin users list route', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it('rejects the list without a bearer token', async () => {
+    const response = await request(app).get('/api/admin/users').expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it('rejects the list for authenticated non-admin users', async () => {
+    mockAuthUser('auth-store');
+    supabaseMock.from.mockReturnValue(
+      createAdminUsersListTable({ authUser: activeStoreUser, rows: [], count: 0 }),
+    );
+
+    const response = await request(app)
+      .get('/api/admin/users')
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it('returns store_name only for logista rows and never leaks the embed', async () => {
+    mockAuthUser();
+    const table = createAdminUsersListTable({
+      authUser: activeAdmin,
+      rows: [
+        { ...activeStoreUser, stores: { name: storeProfile.name } },
+        { ...activeAdmin, stores: null },
+        { ...activeCourierUser, stores: [] },
+      ],
+      count: 3,
+    });
+    supabaseMock.from.mockReturnValue(table);
+
+    const response = await request(app)
+      .get('/api/admin/users?page=1&limit=20')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(table.select).toHaveBeenCalledWith(
+      'id,auth_id,email,role,status,approved_at,approved_by,created_at,updated_at,stores(name)',
+      { count: 'exact' },
+    );
+
+    expect(response.body).toMatchObject({
+      success: true,
+      data: {
+        items: [
+          { ...activeStoreUser, store_name: storeProfile.name },
+          { ...activeAdmin, store_name: null },
+          { ...activeCourierUser, store_name: null },
+        ],
+        pagination: { page: 1, limit: 20, total: 3 },
+      },
+      message: 'Usuarios encontrados',
+    });
+
+    for (const item of response.body.data.items) {
+      expect(item).not.toHaveProperty('stores');
+      expect(item).not.toHaveProperty('logo_url');
+      expect(item).toHaveProperty('store_name');
+    }
+  });
+});
