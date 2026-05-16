@@ -467,3 +467,17 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 107 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (5 arquivos, 41 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Nenhum secret, token, cookie ou header sensivel foi impresso.
 
 **Fora do escopo:** realtime, push/Web Push/VAPID, polling, cron, cancelamento, historico do motoboy, historico admin, pagamentos, Storage/documentos, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies.
+
+## 2026-05-16 - FATIA 4A MOTOBOY POS-DEPLOY PRODUCAO APROVADA
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Backend publicado em producao no commit `a84df437cb30b62c592454fe22b25b173fce9f83` e frontend publicado no commit `b9239dcce3ac25535990d148f8f2480df1bcb232`. O backend `https://entreggoback.vercel.app` e o frontend `https://entreggo.vercel.app/motoboy` foram validados com smoke publico, smoke API autenticado e smoke UI autenticado via Playwright. Todos os smokes usaram recursos ficticios temporarios quando autenticados e cleanup em `finally`, sem imprimir token, cookie, header Authorization, service role ou secret.
+**Arquivos criados:** nenhum
+**Arquivos modificados:** `STATUS.md`, `LOG.md`
+**Status:** fechado em producao
+
+**Validacoes pos-deploy:** Smoke publico confirmou `GET /api/health` -> `200`, `GET /api/deliveries/active` sem token -> `401 AUTH_REQUIRED`, `PATCH /api/deliveries/:id/status` sem token -> `401 AUTH_REQUIRED`, `/motoboy` -> `200` e bundle publicado com os marcadores `Confirmar coleta`, `Iniciar transito`, `Concluir entrega` e chamada `/status`. Smoke API autenticado confirmou `aceita -> coletada`, retry idempotente de `coletada` sem sobrescrever timestamp, `/active` incluindo `coletada`, `coletada -> em_transito`, regressao invalida com `INVALID_DELIVERY_TRANSITION`, `em_transito -> entregue`, `entregue` fora de `/active`, outro courier isolado com `DELIVERY_NOT_FOUND`, payload extra com `VALIDATION_ERROR` e respostas sanitizadas. Smoke UI autenticado confirmou login real do motoboy ficticio, renderizacao da corrida ativa, cliques nos botoes `Confirmar coleta`, `Iniciar transito` e `Concluir entrega`, timestamps `collected_at`, `in_transit_at` e `delivered_at` no banco, remocao da corrida ativa apos `entregue`, ausencia de `store_id`, `courier_id`, `owner_name`, `logo_url`, documentos, Storage, token, header ou secret na UI, e rede sem polling (`GET /api/couriers/me/status` 1x, `GET /api/deliveries/active` 1x, `PATCH /api/deliveries/:id/status` 3x, `GET /api/deliveries/available` 1x). Cleanup retornou completo.
+
+**Decisao de tooling:** Playwright fica como ferramenta oficial de smoke UI autenticado no frontend. A instalacao local altera apenas `package.json` e `package-lock.json` do frontend e deve entrar em commit separado de tooling, sem misturar com a entrega funcional ja publicada.
+
+**Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling, cron, cancelamento, historico do motoboy, historico admin, pagamentos, Storage/documentos, geolocalizacao/GPS e disponibilidade por raio.
