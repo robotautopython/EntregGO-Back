@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DeliveryRequest, DomainUser } from '../src/types/domain.js';
 
@@ -55,9 +55,50 @@ const activeCourierUser: DomainUser = {
   role: 'motoboy',
 };
 
+const pendingCourierUser: DomainUser = {
+  ...activeCourierUser,
+  id: '44444444-4444-4444-8444-555555555555',
+  auth_id: 'auth-pending-courier',
+  status: 'pendente',
+  approved_at: null,
+  approved_by: null,
+};
+
+const blockedCourierUser: DomainUser = {
+  ...activeCourierUser,
+  id: '44444444-4444-4444-8444-666666666666',
+  auth_id: 'auth-blocked-courier',
+  status: 'bloqueado',
+};
+
+const secondActiveCourierUser: DomainUser = {
+  ...activeCourierUser,
+  id: '44444444-4444-4444-8444-777777777777',
+  auth_id: 'auth-second-courier',
+  email: 'second-courier@example.com',
+};
+
 const storeProfile = {
   id: '55555555-5555-4555-8555-555555555555',
   user_id: activeStoreUser.id,
+};
+
+const courierProfile = {
+  id: '99999999-9999-4999-8999-999999999999',
+  user_id: activeCourierUser.id,
+  is_online: true,
+};
+
+const offlineCourierProfile = {
+  ...courierProfile,
+  id: '99999999-9999-4999-8999-aaaaaaaaaaaa',
+  is_online: false,
+};
+
+const secondCourierProfile = {
+  ...courierProfile,
+  id: '99999999-9999-4999-8999-bbbbbbbbbbbb',
+  user_id: secondActiveCourierUser.id,
 };
 
 const deliveryRequest: DeliveryRequest = {
@@ -117,6 +158,58 @@ const createDeliveryListTable = (result: {
   };
 
   return builder;
+};
+
+const createAvailableDeliveryListTable = (result: {
+  data: unknown;
+  error: unknown;
+  count: number | null;
+}) => {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    is: vi.fn(() => builder),
+    gt: vi.fn(() => builder),
+    order: vi.fn(() => builder),
+    range: vi.fn().mockResolvedValue(result),
+  };
+
+  return builder;
+};
+
+const createAcceptDeliveryTable = ({
+  updateResult,
+  currentResult,
+}: {
+  updateResult: { data: unknown; error: unknown };
+  currentResult?: { data: unknown; error: unknown };
+}) => {
+  const updateBuilder = {
+    eq: vi.fn(() => updateBuilder),
+    is: vi.fn(() => updateBuilder),
+    gt: vi.fn(() => updateBuilder),
+    select: vi.fn(() => ({
+      maybeSingle: vi.fn().mockResolvedValue(updateResult),
+    })),
+  };
+
+  const currentBuilder = {
+    eq: vi.fn(() => ({
+      maybeSingle: vi.fn().mockResolvedValue(
+        currentResult ?? {
+          data: null,
+          error: null,
+        },
+      ),
+    })),
+  };
+
+  return {
+    update: vi.fn(() => updateBuilder),
+    select: vi.fn(() => currentBuilder),
+    updateBuilder,
+    currentBuilder,
+  };
 };
 
 const mockAuthenticatedUser = (domainUser: DomainUser, tables: Record<string, unknown> = {}) => {
@@ -619,6 +712,440 @@ describe('M-05 list store deliveries', () => {
     expect(response.body).toMatchObject({
       success: false,
       error: { code: 'VALIDATION_ERROR' },
+    });
+  });
+});
+
+const storeSummary = {
+  name: 'Loja Cafe',
+  address: 'Rua da Loja, 100',
+};
+
+const availableDeliveryRow = {
+  id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+  status: 'aguardando',
+  created_at: '2026-05-16T12:00:00.000Z',
+  expires_at: '2099-05-16T12:01:00.000Z',
+  stores: storeSummary,
+  store_id: storeProfile.id,
+  courier_id: null,
+  destination_address: 'Rua Destino sigilosa',
+  notes: 'Nao expor',
+};
+
+const acceptedDeliveryState = {
+  id: deliveryRequest.id,
+  status: 'aceita',
+  courier_id: courierProfile.id,
+  accepted_at: '2026-05-16T12:00:20.000Z',
+  created_at: deliveryRequest.created_at,
+  expires_at: '2099-05-16T12:01:00.000Z',
+  stores: storeSummary,
+  destination_address: 'Rua Destino sigilosa',
+  notes: 'Nao expor',
+};
+
+describe('Fatia 1 courier available deliveries', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it('rejects available listing from non-couriers', async () => {
+    mockAuthenticatedUser(activeStoreUser);
+
+    const response = await request(app)
+      .get('/api/deliveries/available')
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it.each([
+    [pendingCourierUser, 'USER_PENDING'],
+    [blockedCourierUser, 'USER_BLOCKED'],
+  ])('rejects available listing for courier users with status %s', async (domainUser, code) => {
+    mockAuthenticatedUser(domainUser);
+
+    const response = await request(app)
+      .get('/api/deliveries/available')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code },
+    });
+  });
+
+  it('requires a courier profile', async () => {
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable(notFoundResult),
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/available')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'COURIER_PROFILE_REQUIRED' },
+    });
+  });
+
+  it('requires the courier to be online', async () => {
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: offlineCourierProfile,
+        error: null,
+      }),
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/available')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'COURIER_OFFLINE' },
+    });
+  });
+
+  it('lists only available waiting deliveries with store embed and without restricted fields', async () => {
+    const availableTable = createAvailableDeliveryListTable({
+      data: [availableDeliveryRow],
+      error: null,
+      count: 1,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: availableTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/available?page=2&limit=10')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        items: [
+          {
+            id: availableDeliveryRow.id,
+            status: 'aguardando',
+            created_at: availableDeliveryRow.created_at,
+            expires_at: availableDeliveryRow.expires_at,
+            store: storeSummary,
+          },
+        ],
+        pagination: { page: 2, limit: 10, total: 1 },
+      },
+      message: 'Entregas disponiveis encontradas',
+    });
+
+    expect(availableTable.select).toHaveBeenCalledWith(
+      'id,status,created_at,expires_at,stores(name,address)',
+      { count: 'exact' },
+    );
+    expect(availableTable.eq).toHaveBeenCalledWith('status', 'aguardando');
+    expect(availableTable.is).toHaveBeenCalledWith('courier_id', null);
+    expect(availableTable.gt).toHaveBeenCalledWith('expires_at', 'now');
+    expect(availableTable.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(availableTable.range).toHaveBeenCalledWith(10, 19);
+
+    const item = response.body.data.items[0];
+    expect(item).not.toHaveProperty('store_id');
+    expect(item).not.toHaveProperty('courier_id');
+    expect(item).not.toHaveProperty('destination_address');
+    expect(item).not.toHaveProperty('notes');
+    expect(item).not.toHaveProperty('owner_name');
+    expect(item).not.toHaveProperty('logo_url');
+    expect(item).not.toHaveProperty('description');
+  });
+
+  it('rejects unknown query parameters on available listing', async () => {
+    const couriersTable = createSelectSingleTable({
+      data: courierProfile,
+      error: null,
+    });
+    const availableTable = createAvailableDeliveryListTable({
+      data: [],
+      error: null,
+      count: 0,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: couriersTable,
+      delivery_requests: availableTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/available?limit=20&store_id=forbidden')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(couriersTable.select).not.toHaveBeenCalled();
+    expect(availableTable.select).not.toHaveBeenCalled();
+  });
+});
+
+describe('Fatia 1 courier delivery acceptance', () => {
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+  });
+
+  it('atomically accepts a waiting delivery for an online courier', async () => {
+    const acceptTable = createAcceptDeliveryTable({
+      updateResult: {
+        data: acceptedDeliveryState,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: acceptTable,
+    });
+
+    const response = await request(app)
+      .post(`/api/deliveries/${deliveryRequest.id}/accept`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        id: acceptedDeliveryState.id,
+        status: 'aceita',
+        courier_id: courierProfile.id,
+        accepted_at: acceptedDeliveryState.accepted_at,
+        created_at: acceptedDeliveryState.created_at,
+        expires_at: acceptedDeliveryState.expires_at,
+        store: storeSummary,
+      },
+      message: 'Entrega aceita',
+    });
+
+    expect(acceptTable.update).toHaveBeenCalledWith({
+      status: 'aceita',
+      courier_id: courierProfile.id,
+      accepted_at: 'now',
+    });
+    expect(acceptTable.updateBuilder.eq).toHaveBeenCalledWith('id', deliveryRequest.id);
+    expect(acceptTable.updateBuilder.eq).toHaveBeenCalledWith('status', 'aguardando');
+    expect(acceptTable.updateBuilder.is).toHaveBeenCalledWith('courier_id', null);
+    expect(acceptTable.updateBuilder.gt).toHaveBeenCalledWith('expires_at', 'now');
+    expect(acceptTable.updateBuilder.select).toHaveBeenCalledWith(
+      'id,status,courier_id,accepted_at,created_at,expires_at,stores(name,address)',
+    );
+    expect(acceptTable.select).not.toHaveBeenCalled();
+    expect(response.body.data).not.toHaveProperty('destination_address');
+    expect(response.body.data).not.toHaveProperty('notes');
+    expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toEqual({
+      event: 'delivery_accept',
+      delivery_id: deliveryRequest.id,
+      courier_id: courierProfile.id,
+      result: 'accepted',
+    });
+  });
+
+  it('returns one success and one ALREADY_ACCEPTED when two couriers race for the same delivery', async () => {
+    const firstAcceptTable = createAcceptDeliveryTable({
+      updateResult: {
+        data: acceptedDeliveryState,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: firstAcceptTable,
+    });
+
+    const firstResponse = await request(app)
+      .post(`/api/deliveries/${deliveryRequest.id}/accept`)
+      .set('Authorization', 'Bearer first-courier-token')
+      .expect(200);
+
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+
+    const secondAcceptTable = createAcceptDeliveryTable({
+      updateResult: {
+        data: null,
+        error: null,
+      },
+      currentResult: {
+        data: acceptedDeliveryState,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(secondActiveCourierUser, {
+      couriers: createSelectSingleTable({
+        data: secondCourierProfile,
+        error: null,
+      }),
+      delivery_requests: secondAcceptTable,
+    });
+
+    const secondResponse = await request(app)
+      .post(`/api/deliveries/${deliveryRequest.id}/accept`)
+      .set('Authorization', 'Bearer second-courier-token')
+      .expect(409);
+
+    const statuses = [firstResponse.status, secondResponse.status];
+    expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+    expect(statuses.filter((status) => status === 409)).toHaveLength(1);
+    expect(secondResponse.body).toMatchObject({
+      success: false,
+      error: { code: 'ALREADY_ACCEPTED' },
+    });
+  });
+
+  it('returns the current state when the same courier accepts again', async () => {
+    const acceptTable = createAcceptDeliveryTable({
+      updateResult: {
+        data: null,
+        error: null,
+      },
+      currentResult: {
+        data: acceptedDeliveryState,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: acceptTable,
+    });
+
+    const response = await request(app)
+      .post(`/api/deliveries/${deliveryRequest.id}/accept`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      success: true,
+      data: {
+        id: deliveryRequest.id,
+        status: 'aceita',
+        courier_id: courierProfile.id,
+      },
+    });
+    expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toMatchObject({
+      result: 'idempotent',
+    });
+  });
+
+  it('returns DELIVERY_NOT_FOUND when the delivery does not exist', async () => {
+    const acceptTable = createAcceptDeliveryTable({
+      updateResult: {
+        data: null,
+        error: null,
+      },
+      currentResult: {
+        data: null,
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: acceptTable,
+    });
+
+    const response = await request(app)
+      .post('/api/deliveries/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/accept')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_NOT_FOUND' },
+    });
+  });
+
+  it('returns DELIVERY_EXPIRED when the delivery is still waiting but expired', async () => {
+    const acceptTable = createAcceptDeliveryTable({
+      updateResult: {
+        data: null,
+        error: null,
+      },
+      currentResult: {
+        data: {
+          ...acceptedDeliveryState,
+          status: 'aguardando',
+          courier_id: null,
+          accepted_at: null,
+          expires_at: '2020-05-16T12:01:00.000Z',
+        },
+        error: null,
+      },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: acceptTable,
+    });
+
+    const response = await request(app)
+      .post(`/api/deliveries/${deliveryRequest.id}/accept`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(409);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_EXPIRED' },
+    });
+  });
+
+  it('requires courier profile and online status before accepting', async () => {
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: offlineCourierProfile,
+        error: null,
+      }),
+    });
+
+    const response = await request(app)
+      .post(`/api/deliveries/${deliveryRequest.id}/accept`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'COURIER_OFFLINE' },
     });
   });
 });

@@ -8,16 +8,16 @@
 
 ## Em Andamento
 
-- [ ] Manter dashboards, pagamentos, documentos, historico admin e historico do motoboy como escopo futuro ate validacao de Security/Performance.
+- [ ] Manter dashboards, pagamentos, documentos, historico admin, historico do motoboy, realtime, push, cron, cancelamento e status pos-aceite como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
-- [ ] Rodar validadores de seguranca antes de auth real, uploads, policies RLS finais e push.
-- [ ] Rodar validadores de performance antes de aceite concorrente real, cron, queries de dashboard e realtime.
-- [ ] Especificar proximo marco de entregas sem antecipar aceite concorrente, pool de motoboys, realtime, push, cron ou historico admin.
+- [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push e UI real do motoboy.
+- [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push, polling/listas grandes e status pos-aceite.
+- [ ] Especificar proximo marco de entregas sem antecipar realtime, push, cron, cancelamento, status pos-aceite ou historico admin.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
-- [ ] Cirurgico admin do nome da loja na visao do motoboy: continua backlog do ciclo de aceite com SecurityValidator (ver Bloqueios).
+- [ ] Planejar UI real de descoberta/aceite do motoboy no frontend sem quebrar o contrato PII da Fatia 1.
 
 ## Concluido
 
@@ -58,15 +58,16 @@
 - [x] M-05 implementado localmente no backend: `GET /api/deliveries` lista entregas somente da loja autenticada com `store_id` derivado da sessao, schema strict de query (`page`/`limit<=50`/`status`), ordem `created_at desc`, resposta sem `store_id`/`courier_id`, sem migration/RLS; `typecheck`, `test` (49), `lint`, `build` e `git diff --check` passaram.
 - [x] M-05 validada pos-deploy em producao: backend `f30bfc7` e frontend `6833695` publicados; smoke publico confirmou `GET`/`POST /api/deliveries` sem token com `401 AUTH_REQUIRED` e `/loja/historico` com `200`; smoke autenticado contra `https://entreggoback.vercel.app` validou listagem da propria loja, isolamento multi-tenant, filtro `status=aceita`, paginacao, validacoes negativas, ausencia de `store_id`/`courier_id` e cleanup completo, sem SQL/migration/RLS/grants/policies nem exposicao de secrets.
 - [x] Cirurgico admin: `GET /api/admin/users` passou a retornar `store_name` por item via embed 1:1 (`stores.user_id` unico), preenchido so para `logista`, sem N+1, sem campos de Storage/PII novos; frontend `AdminUsersPanel` ganhou a coluna `Loja`. Gates ImpactValidator + PerformanceValidator aprovados; `typecheck`, `test` (52), `lint`, `build` e `git diff --check` passaram nos dois repos. Publicado em producao (backend `946d84d`, frontend `506c740`); smoke publico confirmou servico no ar e bundle com `store_name`; verificacao autenticada do valor fica no gate de credencial da M-05.
+- [x] Fatia 1 do ciclo de aceite do motoboy implementada localmente no backend: `GET /api/deliveries/available` e `POST /api/deliveries/:id/accept` com guards de motoboy ativo/online, filtro server-side via service role, embed `stores(name,address)` sem N+1, aceite atomico/idempotente e logs JSON sem PII. Frontend atualizado somente em contrato/docs, sem UI real. Gates ImpactValidator + SecurityValidator + PerformanceValidator aprovados; backend `typecheck`, `test` (65), `lint` e `build` passaram; frontend `typecheck`, `lint`, `build` e `npm test --if-present` passaram.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, aceite concorrente, cron, dashboards complexos ou historico admin de entregas.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas, cancelamento ou transicoes pos-aceite. O aceite REST atomico existe, mas ainda sem UI real/realtime/push.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
 - Abas admin de documentos, entregas, pagamentos e notas seguem bloqueadas por falta de backend, schema/auditoria ou validadores especializados.
-- Exibir nome/dados da loja ao motoboy (visao de corrida hoje mockada no frontend `CorridaAtiva.tsx`) depende de novo contrato backend e so pode ser feito em ciclo dedicado do fluxo de aceite com SecurityValidator (PII/contrato entre atores). Nao tratar como ajuste de UI.
+- A visao de corrida do motoboy no frontend (`CorridaAtiva.tsx`) permanece mock; ligar UI real aos contratos de descoberta/aceite depende de ciclo proprio com SecurityValidator e PerformanceValidator. Nao tratar como ajuste cosmetico.
 
 ## Saude do Projeto
 

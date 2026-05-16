@@ -28,3 +28,17 @@ export const listDeliveriesQuerySchema = z
   .strict();
 
 export type ListDeliveriesQuery = z.infer<typeof listDeliveriesQuerySchema>;
+
+export const listAvailableDeliveriesQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+
+export const deliveryIdParamsSchema = z.object({
+  id: z.uuid(),
+});
+
+export type ListAvailableDeliveriesQuery = z.infer<typeof listAvailableDeliveriesQuerySchema>;
+export type DeliveryIdParams = z.infer<typeof deliveryIdParamsSchema>;

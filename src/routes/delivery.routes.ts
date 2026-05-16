@@ -1,7 +1,9 @@
 import { Router } from 'express';
 
 import {
+  acceptDeliveryController,
   createDeliveryController,
+  listAvailableDeliveriesController,
   listDeliveriesController,
 } from '../controllers/delivery.controller.js';
 import { authenticate, requireActiveUser, requireRoles } from '../middlewares/auth.middleware.js';
@@ -9,6 +11,8 @@ import { validateRequest } from '../middlewares/validate-request.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {
   createDeliverySchema,
+  deliveryIdParamsSchema,
+  listAvailableDeliveriesQuerySchema,
   listDeliveriesQuerySchema,
 } from '../validators/delivery.validators.js';
 
@@ -30,4 +34,22 @@ deliveryRouter.get(
   requireRoles('logista'),
   validateRequest({ query: listDeliveriesQuerySchema }),
   asyncHandler(listDeliveriesController),
+);
+
+deliveryRouter.get(
+  '/available',
+  authenticate,
+  requireActiveUser,
+  requireRoles('motoboy'),
+  validateRequest({ query: listAvailableDeliveriesQuerySchema }),
+  asyncHandler(listAvailableDeliveriesController),
+);
+
+deliveryRouter.post(
+  '/:id/accept',
+  authenticate,
+  requireActiveUser,
+  requireRoles('motoboy'),
+  validateRequest({ params: deliveryIdParamsSchema }),
+  asyncHandler(acceptDeliveryController),
 );

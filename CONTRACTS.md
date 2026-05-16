@@ -279,7 +279,88 @@ Resposta:
 }
 ```
 
-Fora deste contrato: aceite concorrente, mudanca de status, detalhe unico, historico admin, busca textual, filtros por data, agregados reais, dados de motoboy, realtime, push, cron, dashboards, pagamentos e frontend.
+Fora deste contrato de loja: mudanca de status, detalhe unico, historico admin, busca textual, filtros por data, agregados reais, dados de motoboy, realtime, push, cron, dashboards, pagamentos e frontend.
+
+## Entregas Fatia 1 - Motoboy
+
+### `GET /api/deliveries/available`
+
+Lista entregas disponiveis para aceite por motoboy. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo`, perfil em `couriers` e `is_online=true`.
+
+Query params (schema strict):
+
+- `page`: inteiro, minimo 1, default 1.
+- `limit`: inteiro, minimo 1, maximo 50, default 20.
+- Qualquer outro parametro gera `VALIDATION_ERROR`.
+
+Regras:
+
+- Como o backend usa service role (RLS nao se aplica server-side), a descoberta filtra explicitamente no servidor: `status='aguardando'`, `courier_id is null` e `expires_at > now()`.
+- O select usa embed PostgREST `stores(name,address)` na mesma consulta, sem N+1.
+- Ordem fixa: `created_at` descendente.
+- A resposta nunca inclui `store_id`, `courier_id`, `destination_address`, `notes`, `owner_name`, `logo_url`, `description` ou qualquer PII fora de `store.name` e `store.address`.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `COURIER_OFFLINE`, `VALIDATION_ERROR`, `DELIVERY_AVAILABLE_LIST_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "status": "aguardando",
+        "created_at": "2026-05-16T12:00:00.000Z",
+        "expires_at": "2026-05-16T12:01:00.000Z",
+        "store": {
+          "name": "Nome da loja",
+          "address": "Endereco operacional da loja"
+        }
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total": 1 }
+  },
+  "message": "Entregas disponiveis encontradas"
+}
+```
+
+### `POST /api/deliveries/:id/accept`
+
+Aceita uma entrega disponivel de forma atomica e idempotente para o mesmo motoboy. Exige os mesmos guards de `GET /api/deliveries/available`.
+
+Regras:
+
+- O backend resolve `couriers.id` por `couriers.user_id = domainUser.id`; sem perfil retorna `COURIER_PROFILE_REQUIRED`, offline retorna `COURIER_OFFLINE`.
+- O aceite usa update condicional em uma unica operacao via service role: `status='aguardando'`, `courier_id is null`, `expires_at > now()`, setando `status='aceita'`, `courier_id=<courier.id>` e `accepted_at=now()`.
+- Uma linha atualizada retorna `200` com estado sanitizado.
+- Zero linhas atualizadas faz uma unica releitura leve por `id` para desambiguar: inexistente `DELIVERY_NOT_FOUND`, mesmo courier `200` idempotente, outro courier/status indisponivel `ALREADY_ACCEPTED`, ou aguardando expirada `DELIVERY_EXPIRED`.
+- O log operacional e uma linha JSON via `console.log` com apenas `event`, `delivery_id`, `courier_id` e `result`; nao inclui nome, endereco, email, token, header, destination_address ou notes.
+- A resposta nunca inclui `destination_address`, `notes`, `owner_name`, `logo_url`, `description` ou PII fora de `store.name` e `store.address`.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `COURIER_OFFLINE`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `ALREADY_ACCEPTED`, `DELIVERY_EXPIRED`, `DELIVERY_ACCEPT_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "status": "aceita",
+    "courier_id": "uuid",
+    "accepted_at": "2026-05-16T12:00:20.000Z",
+    "created_at": "2026-05-16T12:00:00.000Z",
+    "expires_at": "2026-05-16T12:01:00.000Z",
+    "store": {
+      "name": "Nome da loja",
+      "address": "Endereco operacional da loja"
+    }
+  },
+  "message": "Entrega aceita"
+}
+```
+
+Fora desta fatia: Realtime, push/Web Push/VAPID, cron de expiracao automatica, cancelamento, transicoes pos-aceite (`coletada`, `em_transito`, `entregue`), pagamentos, Storage, historico admin, busca textual, SQL/migration/RLS/grants/policies novos e UI real do motoboy.
 
 ## Admin ainda ausente no backend
 

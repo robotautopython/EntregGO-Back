@@ -65,3 +65,14 @@
 **Decisao:** Implementar M-02A no backend: cadastro publico chama a API, o backend usa service role server-side para criar Auth + dominio + perfil, e rotas admin usam Bearer token validado no Supabase Auth mais guards de role `admin` e status `ativo`. Senhas permanecem apenas no Supabase Auth e nao sao gravadas em `public.users`.
 
 **Consequencias:** O frontend continua desacoplado e sem secrets privados. A consistencia entre Auth e dominio depende de compensacao best effort se uma etapa falhar apos a criacao Auth. Validacao RLS com usuario real fica para o ciclo operacional de login/cadastro, porque tokens sinteticos nao validaram como sessao real.
+
+## ADR-007 - Descoberta e aceite do motoboy via service role com filtro server-side
+
+**Data:** 2026-05-16
+**Status:** aceito
+
+**Contexto:** A M-04A endureceu RLS para nao expor entregas aguardando diretamente ao client, e a M-05 consolidou o padrao de endpoints backend usando service role com filtros server-side. A Fatia 1 do ciclo de aceite precisa liberar descoberta de entregas disponiveis e aceite atomico/idempotente sem abrir Realtime, push, cron, migration ou novas policies.
+
+**Decisao:** Implementar `GET /api/deliveries/available` e `POST /api/deliveries/:id/accept` somente no backend, com `authenticate -> requireActiveUser -> requireRoles('motoboy')`, resolucao de `couriers` por `user_id`, exigencia de `is_online=true` e consultas service role filtradas explicitamente. A descoberta filtra `status='aguardando'`, `courier_id is null` e `expires_at > now()`, trazendo `stores(name,address)` por embed na mesma query. O aceite usa update condicional atomico e idempotencia por releitura unica quando zero linhas sao afetadas. RLS/grants/policies permanecem fechados e inalterados.
+
+**Consequencias:** Motoboy passa a ter contrato REST minimo para ver apenas `store.name`/`store.address` e aceitar entrega sem receber `destination_address`/`notes`. A concorrencia fica protegida pelo update condicional, mas notificacao em tempo real, push, cron de expiracao, cancelamento, transicoes pos-aceite e UI real continuam em ciclos separados. Como service role ignora RLS, qualquer evolucao futura deste fluxo deve manter filtros server-side explicitos e repetir SecurityValidator/PerformanceValidator quando tocar PII, listas grandes, realtime ou concorrencia.

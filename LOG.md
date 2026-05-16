@@ -366,3 +366,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Status:** fechado em producao com ressalva de smoke autenticado
 
 **Validacoes:** Backend `GET /api/health` -> `200` e `GET /api/admin/users` sem token -> `401 AUTH_REQUIRED` (rota protegida; servico no ar). Frontend `/admin/usuarios` -> `200` e o bundle publicado (chunk compartilhado `87-*.js`) contem `store_name`, a coluna `Loja` e `api/admin/users`, confirmando o codigo M-cirurgico em producao. Ressalva: `GET /api/admin/users` e autenticado e nao tem marcador publico distintivo no backend; a verificacao do valor de `store_name` por sessao real depende de smoke autenticado (mesmo gate de credencial da M-05) e nao foi executada para nao expor secret/token/header. Nenhum SQL, migration, RLS, grant ou policy. Nenhum secret/token/header exposto. Motoboy segue backlog do ciclo de aceite com SecurityValidator.
+
+## 2026-05-16 - FATIA 1 ACEITE MOTOBOY BACKEND
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada a Fatia 1 do ciclo de aceite do motoboy no backend. `GET /api/deliveries/available` lista entregas disponiveis para motoboy ativo e online, usando service role com filtro server-side `status='aguardando'`, `courier_id is null` e `expires_at > now()`, paginacao strict (`page`, `limit<=50`), ordem `created_at desc` e embed `stores(name,address)` no mesmo select. `POST /api/deliveries/:id/accept` aceita entrega por update condicional atomico (`id`, `status='aguardando'`, `courier_id is null`, `expires_at > now()`), seta `status='aceita'`, `courier_id` e `accepted_at`, e trata zero linhas com uma releitura por `id` para `DELIVERY_NOT_FOUND`, idempotencia do mesmo courier, `ALREADY_ACCEPTED` ou `DELIVERY_EXPIRED`. Logs de aceite sao uma linha JSON com `event`, `delivery_id`, `courier_id` e `result`, sem nome, endereco, email, token, header, `destination_address` ou `notes`.
+**Arquivos modificados (backend):** `src/validators/delivery.validators.ts`, `src/services/delivery.service.ts`, `src/controllers/delivery.controller.ts`, `src/routes/delivery.routes.ts`, `tests/delivery-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `DECISIONS.md`, `LEARNINGS.md`, `LOG.md`
+**Arquivos modificados (frontend):** `CONTRACTS.md`, `STATUS.md`, `LOG.md`, `DECISIONS.md`, `LEARNINGS.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, PerformanceValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado localmente; deploy/smoke autenticado real ficam para ciclo operacional se solicitado
+
+**Gates:** ImpactValidator aprovado (mudanca aditiva, rota de loja M-05 preservada, frontend apenas docs, sem migration/RLS/infra); SecurityValidator aprovado (guards existentes, service role somente server-side, filtro explicito, resposta sem `destination_address`/`notes`, logs sem PII/secrets); PerformanceValidator aprovado (paginacao obrigatoria, limite 50, embed 1:1 sem N+1, update por PK/condicoes e indices existentes da M-01).
+
+**Validacoes:** Backend `npm run typecheck`, `npm test` (6 arquivos, 65 testes), `npm run lint` e `npm run build` passaram. Frontend `npm run typecheck`, `npm run lint`, `npm run build` e `npm test --if-present` passaram; nao ha suite de testes frontend. `git diff --check` passou nos dois repositorios. Nenhum SQL, migration, RLS, grant ou policy foi criado, executado ou alterado. Nenhum secret, token, cookie ou header sensivel foi impresso.
+
+**Fora do escopo:** realtime, push/Web Push/VAPID, cron/expiracao automatica, cancelamento, status pos-aceite (`coletada`, `em_transito`, `entregue`), pagamentos, Storage, historico admin, busca textual e UI real do motoboy.

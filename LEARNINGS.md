@@ -200,3 +200,21 @@ Para enriquecer listagem com dado de tabela relacionada: preferir embed na query
 
 ### Impacto no projeto
 Listagem admin mostra a loja sem regressao de performance, sem migration/RLS e sem vazar campos de Storage; o tipo base `DomainUser` permaneceu intacto para os demais contratos.
+
+## 2026-05-16 - Aceite com service role precisa de condicao completa no update
+
+**Tipo:** Padrao
+**Fase:** fundacao/auth-operacao
+**Contexto:** Fatia 1 do ciclo de aceite do motoboy.
+
+### O que aconteceu
+O backend liberou descoberta de entregas disponiveis e aceite por motoboy sem reabrir RLS. Como o endpoint usa service role, a autorizacao do banco nao filtra automaticamente linhas visiveis para o usuario.
+
+### Por que funciona
+A descoberta aplica filtro server-side por `status='aguardando'`, `courier_id is null` e `expires_at > now()`. O aceite repete essas condicoes no proprio `UPDATE`, junto do `id`, e so entao seta `status='aceita'`, `courier_id` e `accepted_at`. Se zero linhas mudam, uma unica releitura por `id` decide entre inexistente, idempotente, aceito por outro ou expirado.
+
+### O que fazer diferente da proxima vez
+Em qualquer transicao concorrente, a regra de elegibilidade precisa estar no `UPDATE`, nao em um `SELECT` anterior. Releituras depois do update servem apenas para resposta/idempotencia, nunca para decidir antes de gravar.
+
+### Impacto no projeto
+A primeira fatia de aceite fica testavel sem banco real e sem migration/RLS nova. Realtime, push, cron, cancelamento e status pos-aceite continuam fora do caminho critico ate existirem contratos e validadores proprios.
