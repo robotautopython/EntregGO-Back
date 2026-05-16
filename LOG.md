@@ -381,3 +381,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes:** Backend `npm run typecheck`, `npm test` (6 arquivos, 65 testes), `npm run lint` e `npm run build` passaram. Frontend `npm run typecheck`, `npm run lint`, `npm run build` e `npm test --if-present` passaram; nao ha suite de testes frontend. `git diff --check` passou nos dois repositorios. Nenhum SQL, migration, RLS, grant ou policy foi criado, executado ou alterado. Nenhum secret, token, cookie ou header sensivel foi impresso.
 
 **Fora do escopo:** realtime, push/Web Push/VAPID, cron/expiracao automatica, cancelamento, status pos-aceite (`coletada`, `em_transito`, `entregue`), pagamentos, Storage, historico admin, busca textual e UI real do motoboy.
+
+## 2026-05-16 - FATIA 1 MOTOBOY POS-DEPLOY PRODUCAO APROVADA
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O backend da Fatia 1 foi publicado em producao no commit `f5ab8d8` apos o frontend `7db7fad` ja estar publicado. O primeiro smoke publico havia bloqueado porque o backend anterior retornava `404`; apos o push do backend, a Vercel propagou os endpoints e o smoke publico passou. O smoke autenticado foi executado contra `https://entreggoback.vercel.app` com usuarios/perfis/entregas ficticios temporarios e cleanup em `finally`, sem imprimir token, cookie, header ou secret.
+**Arquivos criados:** nenhum
+**Arquivos modificados:** `STATUS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, TestEngineer, SecurityValidator, PerformanceValidator, FinalValidator, Documentador
+**Status:** fechado em producao
+
+**Validacoes locais antes do commit backend:** `npm run typecheck`, `npm run lint`, `npm run build`, `npm test` (6 arquivos, 65 testes) e `git diff --check` passaram; `diff --check` exibiu apenas avisos LF/CRLF.
+
+**Validacoes pos-deploy:** Smoke publico confirmou `GET /api/deliveries/available` sem token -> `401 AUTH_REQUIRED`, `POST /api/deliveries/:id/accept` sem token -> `401 AUTH_REQUIRED`, frontend `/motoboy` -> `200` e bundle publicado contendo `/api/deliveries/available`. Smoke autenticado confirmou que a listagem disponivel retorna apenas `id/status/created_at/expires_at/store` e que `store` contem somente `name/address`; nao retornou `destination_address`, `notes`, `store_id` ou `courier_id`. O aceite concorrente retornou um sucesso e um `ALREADY_ACCEPTED`; entrega expirada retornou `DELIVERY_EXPIRED`; resposta pos-aceite ficou estatica em `status=aceita` sem campos/transicoes `coletada`, `em_transito` ou `entregue`; motoboy offline, pendente, bloqueado e role errado foram negados. Cleanup retornou `completed`. Nenhum SQL, migration, RLS, grant ou policy foi executado ou alterado.
+
+**Fora do escopo preservado:** realtime, push/Web Push/VAPID, cron/expiracao automatica, cancelamento, transicoes pos-aceite, pagamentos, Storage, historico admin, busca textual, filtro por data, detalhe unico e historico do motoboy.
