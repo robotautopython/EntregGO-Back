@@ -36,9 +36,12 @@ export const listAvailableDeliveriesQuerySchema = z
   })
   .strict();
 
+export const activeDeliveryQuerySchema = z.object({}).strict();
+
 export const deliveryIdParamsSchema = z.object({
   id: z.uuid(),
 });
 
 export type ListAvailableDeliveriesQuery = z.infer<typeof listAvailableDeliveriesQuerySchema>;
+export type ActiveDeliveryQuery = z.infer<typeof activeDeliveryQuerySchema>;
 export type DeliveryIdParams = z.infer<typeof deliveryIdParamsSchema>;

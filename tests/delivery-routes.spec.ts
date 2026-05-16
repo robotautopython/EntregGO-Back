@@ -212,6 +212,19 @@ const createAcceptDeliveryTable = ({
   };
 };
 
+const createActiveDeliveryTable = (result: { data: unknown; error: unknown }) => {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    order: vi.fn(() => builder),
+    limit: vi.fn(() => ({
+      maybeSingle: vi.fn().mockResolvedValue(result),
+    })),
+  };
+
+  return builder;
+};
+
 const mockAuthenticatedUser = (domainUser: DomainUser, tables: Record<string, unknown> = {}) => {
   supabaseMock.getUser.mockResolvedValue({
     data: {
@@ -745,6 +758,22 @@ const acceptedDeliveryState = {
   notes: 'Nao expor',
 };
 
+const activeDeliveryState = {
+  id: deliveryRequest.id,
+  destination_address: 'Rua Destino sigilosa',
+  notes: 'Entregar na portaria',
+  status: 'aceita',
+  accepted_at: '2026-05-16T12:00:20.000Z',
+  created_at: deliveryRequest.created_at,
+  expires_at: '2099-05-16T12:01:00.000Z',
+  stores: storeSummary,
+  store_id: storeProfile.id,
+  courier_id: courierProfile.id,
+  owner_name: 'Nao expor',
+  logo_url: 'https://example.test/logo.png',
+  description: 'Nao expor',
+};
+
 describe('Fatia 1 courier available deliveries', () => {
   beforeEach(() => {
     supabaseMock.getUser.mockReset();
@@ -899,6 +928,179 @@ describe('Fatia 1 courier available deliveries', () => {
     });
     expect(couriersTable.select).not.toHaveBeenCalled();
     expect(availableTable.select).not.toHaveBeenCalled();
+  });
+});
+
+describe('Fatia 2 courier active delivery', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it('rejects active delivery lookup without a bearer token', async () => {
+    const response = await request(app).get('/api/deliveries/active').expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it('rejects active delivery lookup from non-couriers', async () => {
+    mockAuthenticatedUser(activeStoreUser);
+
+    const response = await request(app)
+      .get('/api/deliveries/active')
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it.each([
+    [pendingCourierUser, 'USER_PENDING'],
+    [blockedCourierUser, 'USER_BLOCKED'],
+  ])(
+    'rejects active delivery lookup for courier users with status %s',
+    async (domainUser, code) => {
+      mockAuthenticatedUser(domainUser);
+
+      const response = await request(app)
+        .get('/api/deliveries/active')
+        .set('Authorization', 'Bearer courier-token')
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: { code },
+      });
+    },
+  );
+
+  it('requires the courier to be online before active delivery lookup', async () => {
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: offlineCourierProfile,
+        error: null,
+      }),
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/active')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'COURIER_OFFLINE' },
+    });
+  });
+
+  it('returns a successful empty state when the courier has no active delivery', async () => {
+    const activeTable = createActiveDeliveryTable({
+      data: null,
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: activeTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/active')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: null,
+      message: 'Nenhuma corrida ativa encontrada',
+    });
+    expect(activeTable.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
+    expect(activeTable.eq).toHaveBeenCalledWith('status', 'aceita');
+  });
+
+  it('returns only the active delivery assigned to the authenticated courier', async () => {
+    const activeTable = createActiveDeliveryTable({
+      data: activeDeliveryState,
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: courierProfile,
+        error: null,
+      }),
+      delivery_requests: activeTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/active')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        id: activeDeliveryState.id,
+        destination_address: activeDeliveryState.destination_address,
+        notes: activeDeliveryState.notes,
+        status: 'aceita',
+        accepted_at: activeDeliveryState.accepted_at,
+        created_at: activeDeliveryState.created_at,
+        expires_at: activeDeliveryState.expires_at,
+        store: storeSummary,
+      },
+      message: 'Corrida ativa encontrada',
+    });
+
+    expect(activeTable.select).toHaveBeenCalledWith(
+      'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)',
+    );
+    expect(activeTable.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
+    expect(activeTable.eq).toHaveBeenCalledWith('status', 'aceita');
+    expect(activeTable.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(activeTable.limit).toHaveBeenCalledWith(1);
+    expect(response.body.data).not.toHaveProperty('store_id');
+    expect(response.body.data).not.toHaveProperty('courier_id');
+    expect(response.body.data).not.toHaveProperty('owner_name');
+    expect(response.body.data).not.toHaveProperty('logo_url');
+    expect(response.body.data).not.toHaveProperty('description');
+    expect(response.body.data).not.toHaveProperty('collected_at');
+    expect(response.body.data).not.toHaveProperty('in_transit_at');
+    expect(response.body.data).not.toHaveProperty('delivered_at');
+  });
+
+  it('rejects unknown query parameters on active delivery lookup', async () => {
+    const couriersTable = createSelectSingleTable({
+      data: courierProfile,
+      error: null,
+    });
+    const activeTable = createActiveDeliveryTable({
+      data: null,
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: couriersTable,
+      delivery_requests: activeTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/active?courier_id=forbidden')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(couriersTable.select).not.toHaveBeenCalled();
+    expect(activeTable.select).not.toHaveBeenCalled();
   });
 });
 

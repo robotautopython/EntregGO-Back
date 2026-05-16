@@ -396,3 +396,17 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes pos-deploy:** Smoke publico confirmou `GET /api/deliveries/available` sem token -> `401 AUTH_REQUIRED`, `POST /api/deliveries/:id/accept` sem token -> `401 AUTH_REQUIRED`, frontend `/motoboy` -> `200` e bundle publicado contendo `/api/deliveries/available`. Smoke autenticado confirmou que a listagem disponivel retorna apenas `id/status/created_at/expires_at/store` e que `store` contem somente `name/address`; nao retornou `destination_address`, `notes`, `store_id` ou `courier_id`. O aceite concorrente retornou um sucesso e um `ALREADY_ACCEPTED`; entrega expirada retornou `DELIVERY_EXPIRED`; resposta pos-aceite ficou estatica em `status=aceita` sem campos/transicoes `coletada`, `em_transito` ou `entregue`; motoboy offline, pendente, bloqueado e role errado foram negados. Cleanup retornou `completed`. Nenhum SQL, migration, RLS, grant ou policy foi executado ou alterado.
 
 **Fora do escopo preservado:** realtime, push/Web Push/VAPID, cron/expiracao automatica, cancelamento, transicoes pos-aceite, pagamentos, Storage, historico admin, busca textual, filtro por data, detalhe unico e historico do motoboy.
+
+## 2026-05-16 - FATIA 2 MOTOBOY CORRIDA ATIVA SOMENTE LEITURA
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementado `GET /api/deliveries/active` no backend para o motoboy ativo/online ver sua corrida `aceita` atual em modo somente leitura. A rota reutiliza `authenticate`, `requireActiveUser`, `requireRoles('motoboy')`, valida query vazia strict, resolve `couriers.id` pela sessao e filtra explicitamente `delivery_requests` por `courier_id=<courier.id>` e `status='aceita'`, com `order(created_at desc)` e `limit(1)`. Retorna `data: null` quando nao existe corrida ativa. O contrato pos-aceite permite `destination_address` e `notes` somente ao courier atribuido e nao retorna `store_id`, `courier_id`, dados de Storage, dono da loja ou campos de transicao.
+**Arquivos modificados (backend):** `src/validators/delivery.validators.ts`, `src/services/delivery.service.ts`, `src/controllers/delivery.controller.ts`, `src/routes/delivery.routes.ts`, `tests/delivery-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `DECISIONS.md`, `LEARNINGS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, PerformanceValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado localmente; deploy/smoke autenticado real pendentes
+
+**Gates pre-codigo:** ImpactValidator aprovado (mudanca aditiva, rota nova, sem quebra dos contratos M-04/M-05/Fatia 1); SecurityValidator aprovado com guardrail de filtro server-side por `courier_id` e PII so pos-aceite; PerformanceValidator aprovado com query limitada a 1, sem `count`, sem polling e alinhada ao indice existente por `courier_id/status/created_at`.
+
+**Validacoes parciais durante implementacao:** Backend `npm test` passou com 6 arquivos e 73 testes; `npm run typecheck` passou. Nenhum SQL, migration, RLS, grant ou policy foi criado, executado ou alterado. Nenhum secret, token, cookie ou header sensivel foi impresso.
+
+**Fora do escopo:** mutation, transicoes `coletada`/`em_transito`/`entregue`, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos e Storage.

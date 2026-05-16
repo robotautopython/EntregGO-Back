@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import {
   acceptDeliveryForCourier,
   createDelivery,
+  getActiveDeliveryForCourier,
   listAvailableDeliveriesForCourier,
   listStoreDeliveries,
 } from '../services/delivery.service.js';
@@ -46,4 +47,14 @@ export const acceptDeliveryController = async (request: Request, response: Respo
   const result = await acceptDeliveryForCourier(params.id, request.auth?.user.id ?? '');
 
   sendSuccess(response, result, 'Entrega aceita');
+};
+
+export const getActiveDeliveryController = async (request: Request, response: Response) => {
+  const result = await getActiveDeliveryForCourier(request.auth?.user.id ?? '');
+
+  sendSuccess(
+    response,
+    result,
+    result ? 'Corrida ativa encontrada' : 'Nenhuma corrida ativa encontrada',
+  );
 };

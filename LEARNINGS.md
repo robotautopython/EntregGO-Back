@@ -218,3 +218,21 @@ Em qualquer transicao concorrente, a regra de elegibilidade precisa estar no `UP
 
 ### Impacto no projeto
 A primeira fatia de aceite fica testavel sem banco real e sem migration/RLS nova. Realtime, push, cron, cancelamento e status pos-aceite continuam fora do caminho critico ate existirem contratos e validadores proprios.
+
+## 2026-05-16 - PII de entrega depende do estado e do ator
+
+**Tipo:** Padrao
+**Fase:** fundacao/auth-operacao
+**Contexto:** Fatia 2 do motoboy, leitura somente pos-aceite.
+
+### O que aconteceu
+Na descoberta pre-aceite, o motoboy continua recebendo apenas `store.name` e `store.address`. Depois que a entrega esta atribuida ao proprio `courier_id`, o endpoint de corrida ativa pode expor `destination_address` e `notes`, mas apenas no caminho filtrado por esse courier autenticado.
+
+### Por que funciona
+O dado sensivel nao e liberado para o pool de motoboys; ele aparece somente depois da relacao operacional existir no banco (`status='aceita'` e `courier_id=<courier da sessao>`). Como a consulta usa service role, a regra precisa estar no filtro server-side, nao em RLS.
+
+### O que fazer diferente da proxima vez
+Ao evoluir dados entre atores, documentar explicitamente qual estado da entrega autoriza cada campo. Nunca reaproveitar o select pre-aceite para pos-aceite sem revisar PII, e nunca confiar que service role aplicara RLS.
+
+### Impacto no projeto
+Fatia 2 entrega destino/notas ao motoboy certo sem abrir realtime, push, transicoes, historico ou novas policies.

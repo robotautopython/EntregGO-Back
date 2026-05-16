@@ -76,3 +76,14 @@
 **Decisao:** Implementar `GET /api/deliveries/available` e `POST /api/deliveries/:id/accept` somente no backend, com `authenticate -> requireActiveUser -> requireRoles('motoboy')`, resolucao de `couriers` por `user_id`, exigencia de `is_online=true` e consultas service role filtradas explicitamente. A descoberta filtra `status='aguardando'`, `courier_id is null` e `expires_at > now()`, trazendo `stores(name,address)` por embed na mesma query. O aceite usa update condicional atomico e idempotencia por releitura unica quando zero linhas sao afetadas. RLS/grants/policies permanecem fechados e inalterados.
 
 **Consequencias:** Motoboy passa a ter contrato REST minimo para ver apenas `store.name`/`store.address` e aceitar entrega sem receber `destination_address`/`notes`. A concorrencia fica protegida pelo update condicional, mas notificacao em tempo real, push, cron de expiracao, cancelamento, transicoes pos-aceite e UI real continuam em ciclos separados. Como service role ignora RLS, qualquer evolucao futura deste fluxo deve manter filtros server-side explicitos e repetir SecurityValidator/PerformanceValidator quando tocar PII, listas grandes, realtime ou concorrencia.
+
+## ADR-008 - Corrida ativa do motoboy como leitura pos-aceite
+
+**Data:** 2026-05-16
+**Status:** aceito
+
+**Contexto:** A Fatia 1 permitiu descobrir e aceitar entregas reais, mas a UI pos-aceite ainda era confirmacao estatica. Expor destino e observacao antes do aceite continuaria ampliando PII entre atores; ao mesmo tempo, o motoboy atribuido precisa ver a corrida aceita sem antecipar transicoes de status.
+
+**Decisao:** Criar `GET /api/deliveries/active` como endpoint somente leitura, protegido pelos mesmos guards do motoboy ativo/online. O backend resolve `couriers.id` pela sessao, filtra `delivery_requests` por `courier_id=<courier.id>` e `status='aceita'`, ordena por `created_at desc`, limita a 1 e retorna `data: null` quando nao houver corrida ativa. O contrato pos-aceite permite `destination_address` e `notes` somente para o motoboy ja atribuido; segue proibido retornar `store_id`, `courier_id`, Storage/documentos, dados de dono da loja e campos de transicao. Sem mutation, SQL, migration, RLS, grant ou policy.
+
+**Consequencias:** A UI pode substituir a confirmacao estatica por uma tela real somente leitura apos o aceite e ao carregar `/motoboy`. Como service role ignora RLS, o filtro por `courier_id` continua sendo obrigatorio no servidor. Transicoes (`coletada`, `em_transito`, `entregue`), cancelamento, realtime, push, cron e historico do motoboy permanecem em ciclos proprios com novos gates.

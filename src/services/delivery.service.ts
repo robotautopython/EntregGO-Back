@@ -18,6 +18,8 @@ const storeDeliveryListSelect =
 const courierAvailableDeliverySelect = 'id,status,created_at,expires_at,stores(name,address)';
 const courierAcceptedDeliverySelect =
   'id,status,courier_id,accepted_at,created_at,expires_at,stores(name,address)';
+const courierActiveDeliverySelect =
+  'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)';
 const databaseNow = 'now';
 
 interface StoreOwnership {
@@ -46,6 +48,12 @@ interface CourierDeliveryRow {
 
 interface CourierAcceptedDeliveryRow extends CourierDeliveryRow {
   courier_id: string | null;
+  accepted_at: string | null;
+}
+
+interface CourierActiveDeliveryRow extends CourierDeliveryRow {
+  destination_address: string | null;
+  notes: string | null;
   accepted_at: string | null;
 }
 
@@ -93,6 +101,17 @@ export interface CourierAcceptedDeliveryState {
   id: string;
   status: DeliveryRequest['status'];
   courier_id: string | null;
+  accepted_at: string | null;
+  created_at: string;
+  expires_at: string;
+  store: DeliveryStoreSummary;
+}
+
+export interface CourierActiveDeliveryState {
+  id: string;
+  destination_address: string | null;
+  notes: string | null;
+  status: 'aceita';
   accepted_at: string | null;
   created_at: string;
   expires_at: string;
@@ -167,6 +186,19 @@ const toCourierAcceptedDeliveryState = (
   id: row.id,
   status: row.status,
   courier_id: row.courier_id,
+  accepted_at: row.accepted_at,
+  created_at: row.created_at,
+  expires_at: row.expires_at,
+  store: normalizeStoreSummary(row.stores),
+});
+
+const toCourierActiveDeliveryState = (
+  row: CourierActiveDeliveryRow,
+): CourierActiveDeliveryState => ({
+  id: row.id,
+  destination_address: row.destination_address,
+  notes: row.notes,
+  status: 'aceita',
   accepted_at: row.accepted_at,
   created_at: row.created_at,
   expires_at: row.expires_at,
@@ -376,4 +408,26 @@ export const acceptDeliveryForCourier = async (
     }),
   );
   throw new ApiError(409, 'ALREADY_ACCEPTED', 'Entrega ja aceita');
+};
+
+export const getActiveDeliveryForCourier = async (
+  domainUserId: string,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<CourierActiveDeliveryState | null> => {
+  const courier = await resolveOnlineCourier(domainUserId, supabase);
+
+  const { data, error } = await supabase
+    .from('delivery_requests')
+    .select(courierActiveDeliverySelect)
+    .eq('courier_id', courier.id)
+    .eq('status', 'aceita')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<CourierActiveDeliveryRow>();
+
+  if (error) {
+    throw new ApiError(500, 'DELIVERY_ACTIVE_GET_FAILED', 'Busca da corrida ativa falhou');
+  }
+
+  return data ? toCourierActiveDeliveryState(data) : null;
 };

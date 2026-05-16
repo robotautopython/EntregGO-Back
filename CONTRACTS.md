@@ -360,7 +360,59 @@ Resposta:
 }
 ```
 
-Fora desta fatia: Realtime, push/Web Push/VAPID, cron de expiracao automatica, cancelamento, transicoes pos-aceite (`coletada`, `em_transito`, `entregue`), pagamentos, Storage, historico admin, busca textual, SQL/migration/RLS/grants/policies novos e UI real do motoboy.
+Fora desta fatia: Realtime, push/Web Push/VAPID, cron de expiracao automatica, cancelamento, transicoes pos-aceite (`coletada`, `em_transito`, `entregue`), pagamentos, Storage, historico admin, busca textual, SQL/migration/RLS/grants/policies novos e detalhe pos-aceite.
+
+## Entregas Fatia 2 - Motoboy
+
+### `GET /api/deliveries/active`
+
+Retorna a corrida aceita atual do motoboy autenticado, em modo somente leitura. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo`, perfil em `couriers` e `is_online=true`.
+
+Query params: nenhum. Qualquer parametro gera `VALIDATION_ERROR`.
+
+Regras:
+
+- Como o backend usa service role (RLS nao se aplica server-side), o isolamento e garantido por filtro explicito `courier_id=<courier.id>` derivado de `couriers.user_id = domainUser.id`.
+- A rota retorna somente entregas com `status='aceita'`; transicoes `coletada`, `em_transito` e `entregue` seguem fora desta fatia.
+- A consulta usa `order('created_at', desc)` e `limit(1)` para uma unica corrida ativa.
+- Se nao houver corrida ativa, retorna `200` com `data: null` e mensagem honesta.
+- Pre-aceite continua expondo somente `store.name`/`store.address` no endpoint de descoberta. Pos-aceite, este endpoint pode expor `destination_address` e `notes` apenas ao motoboy ja atribuido a entrega.
+- A resposta nunca inclui `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, campos de documento/Storage ou campos de transicao (`collected_at`, `in_transit_at`, `delivered_at`).
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `COURIER_OFFLINE`, `VALIDATION_ERROR`, `DELIVERY_ACTIVE_GET_FAILED`.
+
+Resposta com corrida ativa:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "destination_address": "Endereco de destino",
+    "notes": "Observacao opcional",
+    "status": "aceita",
+    "accepted_at": "2026-05-16T12:00:20.000Z",
+    "created_at": "2026-05-16T12:00:00.000Z",
+    "expires_at": "2026-05-16T12:01:00.000Z",
+    "store": {
+      "name": "Nome da loja",
+      "address": "Endereco operacional da loja"
+    }
+  },
+  "message": "Corrida ativa encontrada"
+}
+```
+
+Resposta sem corrida ativa:
+
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Nenhuma corrida ativa encontrada"
+}
+```
+
+Fora desta fatia: mutation, transicoes de status, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos, Storage, SQL/migration/RLS/grants/policies novos.
 
 ## Admin ainda ausente no backend
 

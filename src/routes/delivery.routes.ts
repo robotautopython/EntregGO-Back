@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
   acceptDeliveryController,
   createDeliveryController,
+  getActiveDeliveryController,
   listAvailableDeliveriesController,
   listDeliveriesController,
 } from '../controllers/delivery.controller.js';
@@ -10,6 +11,7 @@ import { authenticate, requireActiveUser, requireRoles } from '../middlewares/au
 import { validateRequest } from '../middlewares/validate-request.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {
+  activeDeliveryQuerySchema,
   createDeliverySchema,
   deliveryIdParamsSchema,
   listAvailableDeliveriesQuerySchema,
@@ -43,6 +45,15 @@ deliveryRouter.get(
   requireRoles('motoboy'),
   validateRequest({ query: listAvailableDeliveriesQuerySchema }),
   asyncHandler(listAvailableDeliveriesController),
+);
+
+deliveryRouter.get(
+  '/active',
+  authenticate,
+  requireActiveUser,
+  requireRoles('motoboy'),
+  validateRequest({ query: activeDeliveryQuerySchema }),
+  asyncHandler(getActiveDeliveryController),
 );
 
 deliveryRouter.post(

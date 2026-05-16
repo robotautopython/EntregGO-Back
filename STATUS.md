@@ -12,7 +12,7 @@
 
 ## Proximas Tarefas
 
-- [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push e UI real do motoboy.
+- [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, transicoes pos-aceite e historico do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push, polling/listas grandes e status pos-aceite.
 - [ ] Especificar proximo marco de entregas sem antecipar realtime, push, cron, cancelamento, status pos-aceite ou historico admin.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
@@ -60,6 +60,7 @@
 - [x] Cirurgico admin: `GET /api/admin/users` passou a retornar `store_name` por item via embed 1:1 (`stores.user_id` unico), preenchido so para `logista`, sem N+1, sem campos de Storage/PII novos; frontend `AdminUsersPanel` ganhou a coluna `Loja`. Gates ImpactValidator + PerformanceValidator aprovados; `typecheck`, `test` (52), `lint`, `build` e `git diff --check` passaram nos dois repos. Publicado em producao (backend `946d84d`, frontend `506c740`); smoke publico confirmou servico no ar e bundle com `store_name`; verificacao autenticada do valor fica no gate de credencial da M-05.
 - [x] Fatia 1 do ciclo de aceite do motoboy implementada localmente no backend: `GET /api/deliveries/available` e `POST /api/deliveries/:id/accept` com guards de motoboy ativo/online, filtro server-side via service role, embed `stores(name,address)` sem N+1, aceite atomico/idempotente e logs JSON sem PII. Frontend atualizado somente em contrato/docs, sem UI real. Gates ImpactValidator + SecurityValidator + PerformanceValidator aprovados; backend `typecheck`, `test` (65), `lint` e `build` passaram; frontend `typecheck`, `lint`, `build` e `npm test --if-present` passaram.
 - [x] Fatia 1 motoboy validada pos-deploy em producao: backend `f5ab8d8` e frontend `7db7fad` publicados; smoke publico confirmou `GET /api/deliveries/available` e `POST /api/deliveries/:id/accept` sem token com `401 AUTH_REQUIRED`, `/motoboy` com `200` e bundle contendo `/api/deliveries/available`; smoke autenticado validou listagem sem PII alem de `store.name`/`store.address`, aceite atomico com `ALREADY_ACCEPTED`, expirado com `DELIVERY_EXPIRED`, negacoes de offline/pendente/bloqueado/role errado e cleanup completo.
+- [x] Fatia 2 do motoboy implementada localmente: `GET /api/deliveries/active` retorna a corrida `aceita` do courier autenticado em modo somente leitura, com `destination_address`/`notes` apenas pos-aceite, sem `store_id`/`courier_id`/Storage/campos de transicao, sem mutation e sem SQL/migration/RLS/grants/policies. Frontend correspondente consulta corrida ativa antes da fila e apos aceite. Gates ImpactValidator + SecurityValidator + PerformanceValidator aprovados; backend `test` (73) e `typecheck` passaram durante a implementacao.
 
 ## Bloqueios
 
