@@ -61,20 +61,21 @@
 - [x] Fatia 1 do ciclo de aceite do motoboy implementada localmente no backend: `GET /api/deliveries/available` e `POST /api/deliveries/:id/accept` com guards de motoboy ativo/online, filtro server-side via service role, embed `stores(name,address)` sem N+1, aceite atomico/idempotente e logs JSON sem PII. Frontend atualizado somente em contrato/docs, sem UI real. Gates ImpactValidator + SecurityValidator + PerformanceValidator aprovados; backend `typecheck`, `test` (65), `lint` e `build` passaram; frontend `typecheck`, `lint`, `build` e `npm test --if-present` passaram.
 - [x] Fatia 1 motoboy validada pos-deploy em producao: backend `f5ab8d8` e frontend `7db7fad` publicados; smoke publico confirmou `GET /api/deliveries/available` e `POST /api/deliveries/:id/accept` sem token com `401 AUTH_REQUIRED`, `/motoboy` com `200` e bundle contendo `/api/deliveries/available`; smoke autenticado validou listagem sem PII alem de `store.name`/`store.address`, aceite atomico com `ALREADY_ACCEPTED`, expirado com `DELIVERY_EXPIRED`, negacoes de offline/pendente/bloqueado/role errado e cleanup completo.
 - [x] Fatia 2 do motoboy implementada localmente: `GET /api/deliveries/active` retorna a corrida `aceita` do courier autenticado em modo somente leitura, com `destination_address`/`notes` apenas pos-aceite, sem `store_id`/`courier_id`/Storage/campos de transicao, sem mutation e sem SQL/migration/RLS/grants/policies. Frontend correspondente consulta corrida ativa antes da fila e apos aceite. Gates ImpactValidator + SecurityValidator + PerformanceValidator aprovados; backend `test` (73) e `typecheck` passaram durante a implementacao.
+- [x] Fatia 2 motoboy validada pos-deploy em producao: backend `af4d0df` e frontend `53a8e72` publicados; smoke publico confirmou `GET /api/deliveries/active` sem token com `401 AUTH_REQUIRED`, `/motoboy` com `200` e bundle contendo `/api/deliveries/active`; smoke autenticado validou que o motoboy ve somente sua corrida `aceita`, outro motoboy recebe `data: null`, offline/pendente/bloqueado/role errado sao negados, PII pre-aceite segue limitada a `store.name`/`store.address`, PII pos-aceite (`destination_address`/`notes`) aparece apenas para o courier atribuido e cleanup completo.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas, cancelamento ou transicoes pos-aceite. O aceite REST atomico e a UI real de descoberta/aceite existem, mas ainda sem realtime/push.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas, cancelamento ou transicoes pos-aceite. O aceite REST atomico, a UI real de descoberta/aceite e a leitura pos-aceite existem, mas ainda sem realtime/push.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
 - Abas admin de documentos, entregas, pagamentos e notas seguem bloqueadas por falta de backend, schema/auditoria ou validadores especializados.
-- A visao de corrida do motoboy no frontend (`CorridaAtiva.tsx`) permanece mock e isolada no fluxo demo; o caminho padrao `/motoboy` usa a fila real. Transicoes pos-aceite dependem de contrato backend e ciclo proprio com SecurityValidator/PerformanceValidator. Nao tratar como ajuste cosmetico.
+- A visao demo de corrida do motoboy (`CorridaAtiva.tsx`) permanece mock e isolada em `?demo=`; o caminho padrao `/motoboy` usa fila real e leitura real da corrida `aceita`. Transicoes pos-aceite dependem de contrato backend e ciclo proprio com SecurityValidator/PerformanceValidator. Nao tratar como ajuste cosmetico.
 
 ## Saude do Projeto
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (Vitest/RTL na Fatia 1)
+**Testes:** passando no backend e frontend (inclui Vitest/RTL da Fatia 2)
 **Deploy:** frontend e backend publicados em Vercel
 **Riscos abertos:** 4

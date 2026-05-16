@@ -410,3 +410,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes parciais durante implementacao:** Backend `npm test` passou com 6 arquivos e 73 testes; `npm run typecheck` passou. Nenhum SQL, migration, RLS, grant ou policy foi criado, executado ou alterado. Nenhum secret, token, cookie ou header sensivel foi impresso.
 
 **Fora do escopo:** mutation, transicoes `coletada`/`em_transito`/`entregue`, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos e Storage.
+
+## 2026-05-16 - FATIA 2 MOTOBOY POS-DEPLOY PRODUCAO APROVADA
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Backend publicado em producao no commit `af4d0df` e frontend publicado no commit `53a8e72`. A rota `GET /api/deliveries/active` foi validada contra `https://entreggoback.vercel.app` e a UI `/motoboy` contra `https://entreggo.vercel.app`. O smoke autenticado usou usuarios/perfis/entregas ficticios temporarios com cleanup em `finally`, sem imprimir token, cookie, header Authorization ou secret.
+**Arquivos criados:** nenhum
+**Arquivos modificados:** `STATUS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, PerformanceValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado em producao
+
+**Validacoes locais antes dos commits:** Backend `npm run typecheck`, `npm run lint`, `npm run build`, `npm test` (6 arquivos, 73 testes) e `git diff --check` passaram. Frontend `npm run typecheck`, `npm run lint`, `npm run build`, `npm test` (5 arquivos, 31 testes) e `git diff --check` passaram. O frontend tambem foi aberto localmente em `/motoboy`; sem sessao, exibiu o estado esperado de sessao ausente.
+
+**Validacoes pos-deploy:** Smoke publico confirmou `GET /api/deliveries/active` sem token -> `401 AUTH_REQUIRED`, frontend `/motoboy` -> `200` e bundle publicado contendo `/api/deliveries/active`. Smoke autenticado confirmou que o motoboy dono ve sua propria corrida `aceita` em modo somente leitura, com `destination_address` e `notes` apenas pos-aceite; outro motoboy recebe `data: null`; motoboy offline retorna `COURIER_OFFLINE`; pendente retorna `USER_PENDING`; bloqueado retorna `USER_BLOCKED`; role errado retorna `FORBIDDEN_ROLE`. A listagem pre-aceite continuou sem `destination_address`, `notes`, `store_id` ou `courier_id`, expondo apenas `store.name` e `store.address`. Cleanup retornou `completed`. Nenhum SQL, migration, RLS, grant ou policy foi executado ou alterado.
+
+**Fora do escopo preservado:** mutation/transicoes `coletada`/`em_transito`/`entregue`, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos, Storage e dados operacionais adicionais.
