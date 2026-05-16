@@ -76,6 +76,11 @@ const deliveryRequest: DeliveryRequest = {
   updated_at: '2026-05-15T20:00:00.000Z',
 };
 
+const deliveryRequestWithoutDestination: DeliveryRequest = {
+  ...deliveryRequest,
+  destination_address: null,
+};
+
 const notFoundResult = {
   data: null,
   error: {
@@ -197,7 +202,7 @@ describe('M-04A delivery routes', () => {
       .post('/api/deliveries')
       .set('Authorization', 'Bearer store-token')
       .send({
-        destinationAddress: '',
+        notes: 'x'.repeat(501),
       })
       .expect(400);
 
@@ -207,6 +212,43 @@ describe('M-04A delivery routes', () => {
         code: 'VALIDATION_ERROR',
       },
     });
+  });
+
+  it.each([
+    { store_id: '99999999-9999-4999-8999-999999999999' },
+    { status: 'aceita' },
+    { courier_id: '88888888-8888-4888-8888-888888888888' },
+  ])('rejects derived delivery fields from the request body: %s', async (derivedField) => {
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const deliveryRequestsTable = createInsertSingleTable({
+      data: deliveryRequest,
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: deliveryRequestsTable,
+    });
+
+    const response = await request(app)
+      .post('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .send({
+        ...validPayload,
+        ...derivedField,
+      })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+    expect(storesTable.select).not.toHaveBeenCalled();
+    expect(deliveryRequestsTable.insert).not.toHaveBeenCalled();
   });
 
   it('returns a standardized error when the active store has no store profile', async () => {
@@ -246,10 +288,7 @@ describe('M-04A delivery routes', () => {
     const response = await request(app)
       .post('/api/deliveries')
       .set('Authorization', 'Bearer store-token')
-      .send({
-        ...validPayload,
-        store_id: '99999999-9999-4999-8999-999999999999',
-      })
+      .send(validPayload)
       .expect(201);
 
     expect(response.body).toEqual({
@@ -269,5 +308,106 @@ describe('M-04A delivery routes', () => {
     expect(response.body.data).not.toHaveProperty('logo_url');
     expect(response.body.data.status).toBe('aguardando');
     expect(response.body.data.courier_id).toBeNull();
+  });
+
+  it('creates a waiting delivery request with only notes and persists null destination', async () => {
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const deliveryRequestsTable = createInsertSingleTable({
+      data: {
+        ...deliveryRequestWithoutDestination,
+        notes: 'Entregar no caixa',
+      },
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: deliveryRequestsTable,
+    });
+
+    const response = await request(app)
+      .post('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .send({
+        notes: '  Entregar no caixa  ',
+      })
+      .expect(201);
+
+    expect(response.body.data.destination_address).toBeNull();
+    expect(response.body.data.notes).toBe('Entregar no caixa');
+    expect(deliveryRequestsTable.insert).toHaveBeenCalledWith({
+      store_id: storeProfile.id,
+      destination_address: null,
+      notes: 'Entregar no caixa',
+    });
+  });
+
+  it('creates a waiting delivery request from an empty payload', async () => {
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const deliveryRequestsTable = createInsertSingleTable({
+      data: {
+        ...deliveryRequestWithoutDestination,
+        notes: null,
+      },
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: deliveryRequestsTable,
+    });
+
+    const response = await request(app)
+      .post('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .send({})
+      .expect(201);
+
+    expect(response.body.data.destination_address).toBeNull();
+    expect(response.body.data.notes).toBeNull();
+    expect(deliveryRequestsTable.insert).toHaveBeenCalledWith({
+      store_id: storeProfile.id,
+      destination_address: null,
+      notes: null,
+    });
+  });
+
+  it('normalizes whitespace destination and notes to null', async () => {
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const deliveryRequestsTable = createInsertSingleTable({
+      data: {
+        ...deliveryRequestWithoutDestination,
+        notes: null,
+      },
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: deliveryRequestsTable,
+    });
+
+    const response = await request(app)
+      .post('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .send({
+        destinationAddress: '   ',
+        notes: '   ',
+      })
+      .expect(201);
+
+    expect(response.body.data.destination_address).toBeNull();
+    expect(response.body.data.notes).toBeNull();
+    expect(deliveryRequestsTable.insert).toHaveBeenCalledWith({
+      store_id: storeProfile.id,
+      destination_address: null,
+      notes: null,
+    });
   });
 });

@@ -20,6 +20,7 @@ Voce esta trabalhando no projeto EntregGO. Leia `PROJECT.md`, `STATUS.md`, `LOG.
 - Mudancas em auth, PII, uploads, RLS, secrets ou push exigem Security Validator.
 - Mudancas em concorrencia de aceite, indices, queries, cron, realtime ou listas grandes exigem Performance Validator.
 - Criterios de aceite incluem build, lint/typecheck e testes quando existirem.
+- Sempre que o operador precisar rodar SQL manualmente, a resposta deve trazer uma secao destacada `ACAO MANUAL NECESSARIA - SQL` com: ambiente alvo, caminho absoluto do arquivo SQL, bloco completo do SQL a executar, motivo da execucao, resultado esperado no painel/CLI, validacao seguinte e aviso explicito para nao colar secrets ou dados reais.
 
 ## Agentes Principais
 
@@ -33,4 +34,3 @@ Voce esta trabalhando no projeto EntregGO. Leia `PROJECT.md`, `STATUS.md`, `LOG.
 - TestEngineer: `.codex/Q_Quality/Q_Agent_TestEngineer.md`
 - FinalValidator: `.codex/V_Validation/V_Agent_FinalValidator.toml`
 - Documentador: `.codex/C10_Maestro/C10_DOCUMENTADOR.md`
-

@@ -47,7 +47,7 @@ export interface CourierProfile {
 export interface DeliveryRequest {
   id: string;
   store_id: string;
-  destination_address: string;
+  destination_address: string | null;
   notes: string | null;
   status: DeliveryStatus;
   courier_id: string | null;

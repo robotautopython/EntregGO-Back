@@ -500,7 +500,8 @@ const main = async () => {
     await expectApiStatus(apiServer.baseUrl, '/api/deliveries', storeSession.accessToken, 400, {
       method: 'POST',
       body: JSON.stringify({
-        destinationAddress: '',
+        destinationAddress: 'Rua Ficticia 456, Bairro Teste',
+        store_id: storeProfile.id,
       }),
     });
 
@@ -512,7 +513,6 @@ const main = async () => {
       {
         method: 'POST',
         body: JSON.stringify({
-          destinationAddress: 'Rua Ficticia 456, Bairro Teste',
           notes: 'Entrega temporaria criada pelo smoke',
         }),
       },
@@ -524,6 +524,14 @@ const main = async () => {
     );
     assert(deliveryBody.data?.status === 'aguardando', 'Delivery creation status is not waiting');
     assert(deliveryBody.data?.courier_id === null, 'Delivery creation assigned a courier early');
+    assert(
+      deliveryBody.data?.destination_address === null,
+      'Delivery creation without destination did not persist a null address',
+    );
+    assert(
+      deliveryBody.data?.notes === 'Entrega temporaria criada pelo smoke',
+      'Delivery creation did not persist notes from the request',
+    );
 
     const assignableDelivery = await createDeliveryRequest(service, storeProfile.id, stamp, {
       notes: 'Entrega temporaria atribuida para validar RLS',

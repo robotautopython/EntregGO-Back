@@ -96,3 +96,24 @@ Em smokes com service role, separar client administrativo, client anon e clients
 
 ### Impacto no projeto
 A validacao M-04A ficou mais confiavel e o risco de deixar dados temporarios remotos foi reduzido. A correcao ficou restrita ao script de smoke e nao alterou contrato, migration ou regra de negocio.
+
+## 2026-05-15 - Contrato opcional precisa passar pelo banco antes da UI
+
+**Tipo:** Padrao
+**Fase:** fundacao/auth-operacao
+**Contexto:** Ajuste cross-stack para tornar `destinationAddress` opcional em `POST /api/deliveries`.
+
+### O que aconteceu
+O primeiro gate bloqueou a mudanca porque a migration M-01 definia `delivery_requests.destination_address` como `NOT NULL` e ainda tinha check de texto nao vazio. O ciclo so avancou depois de abrir uma migration propria para relaxar a coluna.
+
+### Por que aconteceu
+Validacao Zod e UI nao bastam quando o contrato desejado muda a nulabilidade real do dado persistido. Se o banco continuar `NOT NULL`, o backend pode aceitar o request mas falhar ao gravar.
+
+### Como foi resolvido
+A M-04C tornou a coluna nullable, trocou o check por `null` ou texto nao vazio, e o backend passou a normalizar valores ausentes/vazios para `null`.
+
+### O que fazer diferente da proxima vez
+Para qualquer opcionalidade nova em payload persistido, checar migration, tipo de dominio, validator, service, testes e consumidor frontend antes de editar a UI.
+
+### Impacto no projeto
+O contrato ficou coerente de ponta a ponta localmente sem liberar aceite, realtime, push, cron, historico, cancelamento ou expiracao.

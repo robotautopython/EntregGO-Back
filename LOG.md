@@ -283,3 +283,25 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Status:** fechado com sucesso
 
 **Validacoes:** `npm run typecheck`, `npm test`, `npm run lint` e `npm run build` passaram apos o ajuste final do smoke. `npm test` rodou 6 arquivos e 30 testes. `node scripts/smoke-auth-rls.mjs` passou com `all checks passed` e `cleanup completed`. A varredura residual por marcadores ficticios do smoke retornou zero para `auth_users`, `users`, `stores`, `couriers`, `delivery_requests` e `push_subscriptions`. Durante a validacao, tentativas iniciais expuseram residuos ficticios de smoke por falha no proprio script; somente registros com prefixo/marcadores `rls-smoke-*` foram removidos antes da execucao final limpa. Nenhum secret, token, header sensivel ou dado real foi impresso.
+
+## 2026-05-15 - M-04C BACKEND DESTINO OPCIONAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O contrato real de `POST /api/deliveries` foi ajustado para aceitar criacao sem `destinationAddress`. Foi criada a migration M-04C para tornar `delivery_requests.destination_address` nullable e trocar o check antigo por uma regra que aceita `null` ou texto nao vazio. O backend passou a aceitar `destinationAddress` ausente, vazio ou whitespace, normalizando para `null`, e manteve `notes` opcional tambem normalizado para `null`. O schema Zod ficou `strict`, rejeitando `store_id`, `status`, `courier_id` e campos desconhecidos no body. Aceite, pool de motoboys, realtime, push, cron, historico, cancelamento e expiracao seguiram bloqueados.
+**Arquivos criados:** `supabase/migrations/20260515223000_m04c_delivery_destination_nullable.sql`
+**Arquivos modificados:** `src/validators/delivery.validators.ts`, `src/services/delivery.service.ts`, `src/types/domain.ts`, `tests/delivery-routes.spec.ts`, `scripts/smoke-auth-rls.mjs`, `CONTRACTS.md`, `README.md`, `supabase/README.md`, `STATUS.md`, `LOG.md`, `LEARNINGS.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado localmente com ressalva operacional: aplicar a migration M-04C no Supabase alvo antes de smoke real/deploy
+
+**Validacoes:** `npm run typecheck`, `npm test`, `npm run lint`, `npm run build` e `git diff --check` passaram. `npm test` rodou 6 arquivos e 36 testes. A varredura confirmou que campos derivados aparecem no insert server-side derivado (`store_id: store.id`), nos tipos/respostas e nos testes negativos; `store_id`, `status` e `courier_id` enviados no request agora recebem `VALIDATION_ERROR` antes do service. `console.log` permanece apenas no startup local (`src/index.ts`) e no script de smoke. `node scripts/smoke-auth-rls.mjs` nao foi executado porque a migration M-04C ainda precisa ser aplicada no banco alvo para o smoke real criar entrega sem endereco com seguranca.
+
+## 2026-05-15 - M-04C VALIDADA POS-MIGRATION
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O operador aplicou a SQL da migration `supabase/migrations/20260515223000_m04c_delivery_destination_nullable.sql` no SQL Editor do Supabase alvo e o painel retornou `Success. No rows returned`. Em seguida, o smoke Auth/RLS real foi executado contra o backend buildado localmente. O smoke confirmou criacao de entrega por `logista` ativo sem `destinationAddress`, persistindo `destination_address=null`; rejeicao de payload com `store_id` no body; negacoes para usuario pendente e motoboy; RLS de `delivery_requests`; e cleanup completo dos recursos ficticios.
+**Arquivos criados:** nenhum
+**Arquivos modificados:** `STATUS.md`, `README.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, SecurityValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado com sucesso
+
+**Validacoes:** `npm run build` passou. `node scripts/smoke-auth-rls.mjs` passou com `all checks passed` e `cleanup completed`. Nenhum secret, token, header sensivel ou dado real foi impresso. Aceite, pool de motoboys, realtime, push, cron, historico, cancelamento e expiracao seguem bloqueados.

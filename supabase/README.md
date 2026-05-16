@@ -15,12 +15,17 @@ This folder contains versioned SQL migrations for the EntregGO Supabase/PostgreS
   - Restricts client-side delivery reads to the active owner store or the active already assigned courier.
   - Keeps `insert`, `update` and `delete` unavailable to anon/authenticated clients.
   - Leaves courier discovery, Realtime, push, cron and concurrent acceptance for future scoped milestones.
+- `migrations/20260515223000_m04c_delivery_destination_nullable.sql`
+  - Drops the `NOT NULL` requirement from `delivery_requests.destination_address`.
+  - Replaces the non-empty check with a null-or-non-empty check.
+  - Keeps RLS, grants, indexes, Realtime, push, cron and acceptance behavior unchanged.
 
 ## Security notes
 
 - `public.users` links to Supabase Auth through `auth_id`; passwords are not stored in the domain schema.
 - `payments` has RLS enabled but no anon/authenticated policy. It is backend/service-role only in M-01.
 - `delivery_requests` no longer exposes unassigned waiting requests to couriers in M-04A; reads are limited to active owner stores and active assigned couriers. Future discovery/Realtime must add a new policy only after Security/Performance validation.
+- `delivery_requests.destination_address` is optional since M-04C. Missing, empty or whitespace request values must be normalized to `null` by the backend, not by client-side database writes.
 - Policies are intentionally conservative and must be revalidated during the real auth/cadastro cycle.
 - Do not commit real Supabase keys, VAPID private keys, JWT secrets, service role keys, or seed data with PII.
 

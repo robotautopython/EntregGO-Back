@@ -189,7 +189,6 @@ Body:
 
 ```json
 {
-  "destinationAddress": "Endereco de destino",
   "notes": "Observacao opcional"
 }
 ```
@@ -197,8 +196,10 @@ Body:
 Regras:
 
 - `store_id` sempre e derivado do perfil `stores` do usuario autenticado; nunca vem do body.
-- `destinationAddress` e obrigatorio, com trim e limite de tamanho.
-- `notes` e opcional; quando ausente ou vazio, e gravado como `null`.
+- O body aceita somente `destinationAddress` e `notes`; campos derivados ou desconhecidos geram `VALIDATION_ERROR`.
+- `destinationAddress` e opcional; quando ausente, vazio ou somente whitespace, e gravado como `null`.
+- `destinationAddress` nao vazio recebe trim e limite de tamanho.
+- `notes` e opcional; quando ausente, vazio ou somente whitespace, e gravado como `null`.
 - A entrega nasce com `status=aguardando`, `courier_id=null` e `expires_at` definido pelo default do banco.
 - Escritas client-side em `delivery_requests` seguem negadas por RLS/grants; o backend usa service role.
 
@@ -210,7 +211,7 @@ Resposta:
   "data": {
     "id": "uuid",
     "store_id": "uuid",
-    "destination_address": "Endereco de destino",
+    "destination_address": null,
     "notes": "Observacao opcional",
     "status": "aguardando",
     "courier_id": null,

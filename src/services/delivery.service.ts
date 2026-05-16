@@ -14,6 +14,11 @@ interface StoreOwnership {
   user_id: string;
 }
 
+const normalizeOptionalText = (value: string | undefined): string | null => {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 export const createDelivery = async (
   input: CreateDeliveryInput,
   domainUserId: string,
@@ -29,12 +34,13 @@ export const createDelivery = async (
     throw new ApiError(403, 'STORE_PROFILE_REQUIRED', 'Perfil de loja nao encontrado');
   }
 
-  const notes = input.notes && input.notes.length > 0 ? input.notes : null;
+  const destinationAddress = normalizeOptionalText(input.destinationAddress);
+  const notes = normalizeOptionalText(input.notes);
   const { data, error } = await supabase
     .from('delivery_requests')
     .insert({
       store_id: store.id,
-      destination_address: input.destinationAddress,
+      destination_address: destinationAddress,
       notes,
     })
     .select(deliveryRequestSelect)

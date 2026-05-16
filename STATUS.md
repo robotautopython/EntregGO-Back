@@ -51,6 +51,8 @@
 - [x] Fechamento local da migracao frontend para Next.js `15.5.18`/React `19.2.6` validado sem mudanca funcional no backend.
 - [x] M-04A implementado localmente no backend: `POST /api/deliveries` para loja ativa, testes de autorizacao/validacao e migration de hardening RLS para `delivery_requests`.
 - [x] M-04A validado pos-migration no Supabase alvo: smoke Auth/RLS real confirmou criacao de entrega por `logista` ativo, negacoes por role/status, RLS de `delivery_requests` e cleanup completo.
+- [x] M-04C implementado localmente: `destinationAddress` opcional no contrato de criacao de entrega, migration nullable para `delivery_requests.destination_address`, payload restrito e docs cross-stack atualizadas.
+- [x] M-04C validado pos-migration no Supabase alvo: SQL aplicado com sucesso e smoke Auth/RLS real confirmou criacao sem endereco com `destination_address=null`, negacoes por role/status, payload derivado rejeitado e cleanup completo.
 
 ## Bloqueios
 
