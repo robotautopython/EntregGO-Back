@@ -346,3 +346,14 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Decisao de escopo:** Admin = correcao cirurgica tratada em ciclo proprio (causa provavel: contrato de listagem nao traz o nome), com ImpactValidator + PerformanceValidator (incluir campo em endpoint de listagem sem N+1). Motoboy = backlog; expor nome/dados da loja ao motoboy e mudanca de contrato/PII e fica para o ciclo de aceite com SecurityValidator. Sem SQL, migration, RLS, grants ou policies.
 **Agentes utilizados:** Camisa10, ImpactValidator (planejado), Documentador
 **Status:** diagnostico registrado; sem codigo
+
+## 2026-05-16 - CIRURGICO ADMIN: NOME DA LOJA NA LISTAGEM
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** `GET /api/admin/users` (`listUsers`) passou a retornar `store_name` por item. O `select` usa embed 1:1 do PostgREST (`stores.user_id` unico -> `users.id`) na mesma query paginada/contada (sem N+1); um normalizador (`extractStoreName`/`toAdminUserListItem`) aceita objeto ou array do embed, expoe somente `name` e remove a chave `stores` da resposta. `store_name` e `null` para `admin`/`motoboy`. Novo tipo `AdminUserListItem` (backend e frontend); `getUserDetail` e demais contratos inalterados. O frontend `AdminUsersPanel` ganhou a coluna `Loja` (mostra `store_name` ou `—`), sem chamar o detalhe por linha. Nenhum campo de Storage/PII novo, nenhuma migration, RLS, grant, policy ou SQL.
+**Arquivos modificados (backend):** `src/types/domain.ts`, `src/services/admin.service.ts`, `tests/admin-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`, `LEARNINGS.md`
+**Arquivos modificados (frontend):** `src/types/auth.ts`, `src/components/admin/AdminUsersPanel.tsx`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, PerformanceValidator, TestEngineer, FinalValidator, Documentador
+**Status:** fechado localmente; deploy pendente
+
+**Validacoes:** Gates ImpactValidator (campo aditivo retrocompativel, cross-stack mapeado) e PerformanceValidator (embed 1:1 numa unica query elimina N+1; +1 string curta por item; `count: 'exact'` e order/range inalterados) aprovados. Backend `npm run typecheck`, `npm test` (6 arquivos, 52 testes, 3 novos da listagem), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm run lint`, `npm run build`, `npm test --if-present` (sem suite) e `git diff --check` passaram. Os testes novos cobrem: sem token (`AUTH_REQUIRED`), nao-admin (`FORBIDDEN_ROLE`) e admin recebendo `store_name` so para logista, `null` para admin/motoboy, sem vazar a chave `stores` nem `logo_url`. Nenhum secret, token ou header foi exposto. Motoboy segue backlog do ciclo de aceite com SecurityValidator.

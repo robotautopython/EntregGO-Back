@@ -17,7 +17,7 @@
 - [ ] Especificar proximo marco de entregas sem antecipar aceite concorrente, pool de motoboys, realtime, push, cron ou historico admin.
 - [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
-- [ ] Cirurgico admin: exibir nome da loja na listagem. `GET /api/admin/users` (`listUsers`) hoje so devolve `DomainUser`; incluir nome/identificador da loja por linha sem N+1, com ImpactValidator + PerformanceValidator. Diagnostico em LOG 2026-05-16.
+- [ ] Cirurgico admin do nome da loja na visao do motoboy: continua backlog do ciclo de aceite com SecurityValidator (ver Bloqueios).
 
 ## Concluido
 
@@ -57,6 +57,7 @@
 - [x] M-04C validada pos-deploy em producao: smoke publico confirmou `401 AUTH_REQUIRED` sem token, frontend `/loja/nova-entrega` `200` e bundle com payload minimo; smoke autenticado criou entrega com payload `{}`, `destination_address=null`, `status=aguardando`, `courier_id=null` e cleanup completo, sem SQL adicional nem exposicao de secrets.
 - [x] M-05 implementado localmente no backend: `GET /api/deliveries` lista entregas somente da loja autenticada com `store_id` derivado da sessao, schema strict de query (`page`/`limit<=50`/`status`), ordem `created_at desc`, resposta sem `store_id`/`courier_id`, sem migration/RLS; `typecheck`, `test` (49), `lint`, `build` e `git diff --check` passaram.
 - [x] M-05 validada pos-deploy em producao: backend `f30bfc7` e frontend `6833695` publicados; smoke publico confirmou `GET`/`POST /api/deliveries` sem token com `401 AUTH_REQUIRED` e `/loja/historico` com `200`; smoke autenticado contra `https://entreggoback.vercel.app` validou listagem da propria loja, isolamento multi-tenant, filtro `status=aceita`, paginacao, validacoes negativas, ausencia de `store_id`/`courier_id` e cleanup completo, sem SQL/migration/RLS/grants/policies nem exposicao de secrets.
+- [x] Cirurgico admin: `GET /api/admin/users` passou a retornar `store_name` por item via embed 1:1 (`stores.user_id` unico), preenchido so para `logista`, sem N+1, sem campos de Storage/PII novos; frontend `AdminUsersPanel` ganhou a coluna `Loja`. Gates ImpactValidator + PerformanceValidator aprovados; `typecheck`, `test` (52), `lint`, `build` e `git diff --check` passaram nos dois repos.
 
 ## Bloqueios
 

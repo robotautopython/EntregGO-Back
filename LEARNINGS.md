@@ -182,3 +182,21 @@ Antes de editar a tela, rastrear o contrato/endpoint que alimenta o campo. Inclu
 
 ### Impacto no projeto
 Evita editar UI que ja esta correta, separa correcao cirurgica (admin) de feature sensivel (motoboy) e mantem o roadmap de aceite/PII no padrao com validadores.
+
+## 2026-05-16 - Enriquecer listagem com embed 1:1 evita N+1
+
+**Tipo:** Padrao
+**Fase:** fundacao/auth-operacao
+**Contexto:** Incluir `store_name` em `GET /api/admin/users` sem multiplicar queries.
+
+### O que aconteceu
+A queixa do nome da loja na listagem admin foi resolvida com o embed PostgREST `stores(name)` no mesmo `select` paginado/contado, em vez de buscar o detalhe por linha no frontend.
+
+### Por que funciona
+`stores.user_id` e `unique` (relacao 1:1 com `users`), entao o embed resolve por FK numa unica ida ao banco, sem N+1 e sem novo indice. O campo exposto (`name`) ja era visivel ao mesmo ator (admin) no detalhe, entao nao ha PII nova.
+
+### O que fazer diferente da proxima vez
+Para enriquecer listagem com dado de tabela relacionada: preferir embed na query existente; normalizar o retorno (objeto ou array) e remover a chave de relacao da resposta; criar tipo dedicado de item de listagem em vez de inflar o tipo base compartilhado; confirmar que o campo ja e permitido ao ator e passar PerformanceValidator pelo risco de N+1/payload.
+
+### Impacto no projeto
+Listagem admin mostra a loja sem regressao de performance, sem migration/RLS e sem vazar campos de Storage; o tipo base `DomainUser` permaneceu intacto para os demais contratos.

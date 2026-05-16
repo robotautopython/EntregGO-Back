@@ -87,6 +87,8 @@ Todas as rotas admin exigem Bearer token de usuario autenticado, role `admin` e 
 
 Listagens sao paginadas com limite maximo de `100`. Acoes admin alteram somente dados de dominio; nao removem usuarios do Supabase Auth.
 
+`GET /api/admin/users` retorna, por item, os campos de `DomainUser` mais `store_name: string | null`. `store_name` vem de um embed 1:1 (`stores.user_id` unico -> `users.id`) na mesma query (sem N+1) e so e preenchido para `role=logista`; `admin`/`motoboy` recebem `null`. Nenhum campo de Storage/PII novo (`logo_url`, documentos) entra neste contrato. O detalhe `GET /api/admin/users/:id` permanece inalterado.
+
 ### `GET /api/admin/insights`
 
 Retorna um dashboard administrativo minimo, sem parametros no v1. O endpoint consulta apenas `public.users`, nao acessa perfis, entregas, pagamentos, Storage, Realtime, cache, cron ou dados mockados.
