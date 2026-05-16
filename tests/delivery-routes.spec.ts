@@ -104,13 +104,22 @@ const createInsertSingleTable = (result: unknown) => ({
   })),
 });
 
-const mockAuthenticatedUser = (
-  domainUser: DomainUser,
-  tables: Record<
-    string,
-    ReturnType<typeof createSelectSingleTable> | ReturnType<typeof createInsertSingleTable>
-  > = {},
-) => {
+const createDeliveryListTable = (result: {
+  data: unknown;
+  error: unknown;
+  count: number | null;
+}) => {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    order: vi.fn(() => builder),
+    range: vi.fn().mockResolvedValue(result),
+  };
+
+  return builder;
+};
+
+const mockAuthenticatedUser = (domainUser: DomainUser, tables: Record<string, unknown> = {}) => {
   supabaseMock.getUser.mockResolvedValue({
     data: {
       user: {
@@ -408,6 +417,208 @@ describe('M-04A delivery routes', () => {
       store_id: storeProfile.id,
       destination_address: null,
       notes: null,
+    });
+  });
+});
+
+const listRowEntregue = {
+  id: '77777777-7777-4777-8777-777777777777',
+  destination_address: 'Rua A, 1',
+  notes: null,
+  status: 'entregue',
+  created_at: '2026-05-15T21:00:00.000Z',
+  expires_at: '2026-05-15T21:01:00.000Z',
+  accepted_at: '2026-05-15T21:00:30.000Z',
+  collected_at: '2026-05-15T21:00:40.000Z',
+  in_transit_at: '2026-05-15T21:00:50.000Z',
+  delivered_at: '2026-05-15T21:05:00.000Z',
+  updated_at: '2026-05-15T21:05:00.000Z',
+};
+
+const listRowAguardando = {
+  id: '88888888-8888-4888-8888-888888888888',
+  destination_address: null,
+  notes: 'Sem endereco',
+  status: 'aguardando',
+  created_at: '2026-05-15T20:00:00.000Z',
+  expires_at: '2026-05-15T20:01:00.000Z',
+  accepted_at: null,
+  collected_at: null,
+  in_transit_at: null,
+  delivered_at: null,
+  updated_at: '2026-05-15T20:00:00.000Z',
+};
+
+describe('M-05 list store deliveries', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it('rejects listing without a bearer token', async () => {
+    const response = await request(app).get('/api/deliveries').expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it.each([
+    [pendingStoreUser, 'USER_PENDING'],
+    [blockedStoreUser, 'USER_BLOCKED'],
+  ])('rejects listing for store users with status %s', async (domainUser, code) => {
+    mockAuthenticatedUser(domainUser);
+
+    const response = await request(app)
+      .get('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code },
+    });
+  });
+
+  it('rejects listing from active couriers', async () => {
+    mockAuthenticatedUser(activeCourierUser);
+
+    const response = await request(app)
+      .get('/api/deliveries')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it('returns STORE_PROFILE_REQUIRED when the active store has no store profile', async () => {
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable(notFoundResult),
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'STORE_PROFILE_REQUIRED' },
+    });
+  });
+
+  it('lists only deliveries scoped to the authenticated store, ordered and without identifiers', async () => {
+    const deliveryListTable = createDeliveryListTable({
+      data: [listRowEntregue, listRowAguardando],
+      error: null,
+      count: 2,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+      delivery_requests: deliveryListTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        items: [listRowEntregue, listRowAguardando],
+        pagination: { page: 1, limit: 20, total: 2 },
+      },
+      message: 'Entregas encontradas',
+    });
+
+    const selectArg = (deliveryListTable.select.mock.calls[0] as unknown[])[0] as string;
+    expect(selectArg).not.toContain('store_id');
+    expect(selectArg).not.toContain('courier_id');
+    expect(deliveryListTable.eq).toHaveBeenCalledWith('store_id', storeProfile.id);
+    expect(deliveryListTable.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(deliveryListTable.range).toHaveBeenCalledWith(0, 19);
+    for (const item of response.body.data.items) {
+      expect(item).not.toHaveProperty('store_id');
+      expect(item).not.toHaveProperty('courier_id');
+    }
+  });
+
+  it('applies the status filter and pagination range', async () => {
+    const deliveryListTable = createDeliveryListTable({
+      data: [listRowEntregue],
+      error: null,
+      count: 1,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+      delivery_requests: deliveryListTable,
+    });
+
+    await request(app)
+      .get('/api/deliveries?status=entregue&page=2&limit=10')
+      .set('Authorization', 'Bearer store-token')
+      .expect(200);
+
+    expect(deliveryListTable.eq).toHaveBeenCalledWith('store_id', storeProfile.id);
+    expect(deliveryListTable.eq).toHaveBeenCalledWith('status', 'entregue');
+    expect(deliveryListTable.range).toHaveBeenCalledWith(10, 19);
+  });
+
+  it('rejects an invalid status value', async () => {
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries?status=invalido')
+      .set('Authorization', 'Bearer store-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+  });
+
+  it('rejects a limit above the maximum', async () => {
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries?limit=51')
+      .set('Authorization', 'Bearer store-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+  });
+
+  it.each([
+    'store_id=99999999-9999-4999-8999-999999999999',
+    'courier_id=88888888-8888-4888-8888-888888888888',
+    'user_id=11111111-1111-4111-8111-111111111111',
+    'unknown=1',
+  ])('rejects unknown query parameters: %s', async (queryString) => {
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries?${queryString}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
     });
   });
 });
