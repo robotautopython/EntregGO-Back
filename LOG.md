@@ -605,3 +605,16 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 133 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (9 arquivos, 64 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Nenhum secret, token, cookie, header Authorization ou service role foi impresso. `.env.local` segue ignorado por `.gitignore`.
 
 **Fora do escopo preservado:** codigo funcional novo, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, detalhe unico do historico, busca textual, filtro por data e dados pessoais do motoboy.
+
+## 2026-05-17 - FATIA 4B POS-PUSH E SMOKE PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O fechamento documental da Fatia 4B foi publicado em `origin/main` com backend `b61985920cd6256ceb0b2dc820be8d11ec93e5ed` e frontend `4ecb8f0b8fa9f7b77b35dee223e0e5067ec40783`. O smoke publico e o smoke autenticado minimo foram executados contra producao. A alteracao foi documental; o runtime ja continha o endpoint e a UI.
+**Arquivos modificados:** `STATUS.md`, `LOG.md`
+**Status:** fechado em producao
+
+**Validacoes pos-push:** `git ls-remote` confirmou os SHAs em `refs/heads/main`. Smoke publico confirmou `GET https://entreggoback.vercel.app/api/health` -> `200`, `GET /api/deliveries/history` sem token -> `401 AUTH_REQUIRED` e `https://entreggo.vercel.app/motoboy/historico` -> `200`. Smoke autenticado com credenciais locais seguras e dados ficticios temporarios confirmou motoboy ativo offline consultando historico, somente entregas do proprio courier retornadas, entrega de outro courier ausente, `courier_id` em query rejeitado com `VALIDATION_ERROR`, loja autenticada rejeitada com `FORBIDDEN_ROLE`, ausencia de `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, email, `auth_id`, token ou header na resposta, e cleanup completo.
+
+**Observabilidade:** Nenhum token, cookie, header Authorization, service role ou secret foi impresso. O smoke autenticado imprimiu apenas status resumido e confirmou cleanup.
+
+**Fora do escopo preservado:** codigo funcional novo, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, detalhe unico do historico, busca textual, filtro por data e dados pessoais do motoboy.
