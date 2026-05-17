@@ -8,13 +8,14 @@
 
 ## Em Andamento
 
-- [ ] Manter dashboards complexos, controle simples de pagamento externo, documentos, detalhe admin, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
+- [ ] Fechar operacionalmente a M-08 backend-first de pagamento externo: commit, push, deploy Vercel e smoke pos-deploy.
+- [ ] Manter dashboards complexos, documentos, detalhe admin, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
 - [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento ou dados pessoais novos do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
-- [ ] Especificar controle administrativo de pagamento externo: `GET /api/admin/payments` e `PATCH /api/admin/payments/:id/mark-paid`, sem gateway/checkout/PIX/cartao, com auditoria simples de quem marcou.
+- [ ] Depois da publicacao da M-08 backend, planejar a UI admin de pagamento externo sem gateway/checkout/PIX/cartao/comprovante/repasse.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
 ## Concluido
@@ -79,6 +80,7 @@
 - [x] Fatia 4C publicada e validada em producao: backend `704694c4d6c63d1c3962e3b1353434f41c2c64c7` e frontend `2f6f3bd638fd3f0810eaeed3b438ab9ab4b6f9ae` enviados para `origin/main`. Smoke publico confirmou `/api/health` `200`, `GET /api/deliveries/history/<uuid>` sem token com `401 AUTH_REQUIRED` e `/motoboy/historico/<uuid>` `200`. Smoke autenticado API+UI com dados ficticios confirmou detalhe proprio, isolamento por outro courier, query proibida, role errada, UI real e cleanup completo sem imprimir secrets.
 - [x] M-07 implementada e validada localmente no backend: `GET /api/admin/deliveries` lista entregas globais para admin ativo, somente leitura, com query strict (`page`, `limit<=50`, `status`), resposta sanitizada com `store.name/address`, sem IDs internos, dados de motoboy, documentos, Storage, tokens ou headers. Inclui migration aditiva `idx_delivery_requests_created_at_id_desc` para listagem global sem status. Backend `typecheck`, `test` (158), `lint`, `build` e `git diff --check` passaram.
 - [x] M-07 publicada e validada em producao: backend `a258888be13b69515ca4521c931452fac5796df2`, frontend `48994109cfd1c559ac4df6b3eddf03de66d46c9b`; indice remoto `idx_delivery_requests_created_at_id_desc` confirmado; Vercel `success`; smoke publico e autenticado API+UI passaram com dados ficticios e cleanup completo.
+- [x] M-08 implementada e validada localmente no backend: `GET /api/admin/payments` e `PATCH /api/admin/payments/:id/mark-paid` para controle administrativo simples de pagamento externo, admin ativo, query/body strict, auditoria server-side, idempotencia sem sobrescrever `paid_at`/`marked_by`, resposta sanitizada sem PII financeira e migration aditiva `idx_payments_paid_reference_month_due_date_id`. Indice remoto aplicado e confirmado via `pg_indexes`. Gates Cetico, ImpactValidator, SecurityValidator e PerformanceValidator aprovaram com ressalvas incorporadas. Backend `typecheck`, `test` (174), `lint`, `build` e `git diff --check` passaram.
 
 ## Bloqueios
 
@@ -86,13 +88,13 @@
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
-- Abas admin de documentos, confirmacao de pagamento externo e notas seguem bloqueadas por falta de endpoints backend. Pagamento nao tera gateway nem cobranca integrada; precisa apenas de contrato simples, auditoria de marcacao e paginacao, mas nao e prioridade antes do fluxo principal.
+- Abas admin de documentos e notas seguem bloqueadas por falta de endpoints backend. A confirmacao de pagamento externo tem backend M-08 implementado localmente e indice remoto aplicado/confirmado, mas ainda depende de commit, deploy e smoke antes de liberar UI real; continua sem gateway, cobranca integrada, comprovante, repasse ou exibicao para loja/motoboy.
 - A visao demo de corrida do motoboy (`CorridaAtiva.tsx`) permanece mock e isolada em `?demo=`; o caminho padrao `/motoboy` usa fila real, leitura real da corrida ativa e transicoes pos-aceite REST. Nao misturar mock/demo com dado real.
 
 ## Saude do Projeto
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (M-07: backend 158 testes, frontend 75 testes)
-**Deploy:** frontend e backend publicados em Vercel; Fatia 4C e M-07 validadas em producao
+**Testes:** passando no backend e frontend (M-08 local backend: 174 testes; M-07 frontend: 75 testes)
+**Deploy:** frontend e backend publicados em Vercel; Fatia 4C e M-07 validadas em producao; M-08 backend pendente de fechamento operacional
 **Riscos abertos:** 4

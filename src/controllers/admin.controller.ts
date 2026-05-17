@@ -6,13 +6,18 @@ import {
   getAdminInsights,
   getUserDetail,
   listAdminDeliveries,
+  listAdminPayments,
   listUsers,
+  markAdminPaymentPaid,
   unblockUser,
 } from '../services/admin.service.js';
 import { sendSuccess } from '../utils/api-response.js';
+import { ApiError } from '../utils/errors.js';
 import type {
   AdminListDeliveriesQuery,
+  AdminListPaymentsQuery,
   AdminListUsersQuery,
+  PaymentIdParams,
   UserIdParams,
 } from '../validators/admin.validators.js';
 
@@ -32,6 +37,25 @@ export const listAdminDeliveriesController = async (request: Request, response: 
   const result = await listAdminDeliveries(request.query as unknown as AdminListDeliveriesQuery);
 
   sendSuccess(response, result, 'Entregas administrativas encontradas');
+};
+
+export const listAdminPaymentsController = async (request: Request, response: Response) => {
+  const result = await listAdminPayments(request.query as unknown as AdminListPaymentsQuery);
+
+  sendSuccess(response, result, 'Pagamentos administrativos encontrados');
+};
+
+export const markAdminPaymentPaidController = async (request: Request, response: Response) => {
+  const params = request.params as PaymentIdParams;
+  const adminUserId = request.auth?.user.id;
+
+  if (!adminUserId) {
+    throw new ApiError(401, 'AUTH_REQUIRED', 'Autenticacao obrigatoria');
+  }
+
+  const result = await markAdminPaymentPaid(params.id, adminUserId);
+
+  sendSuccess(response, result, 'Pagamento marcado como pago');
 };
 
 export const getUserDetailController = async (request: Request, response: Response) => {

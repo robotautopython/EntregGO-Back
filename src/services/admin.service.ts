@@ -16,6 +16,7 @@ import type {
 import { ApiError } from '../utils/errors.js';
 import type {
   AdminListDeliveriesQuery,
+  AdminListPaymentsQuery,
   AdminListUsersQuery,
 } from '../validators/admin.validators.js';
 
@@ -31,9 +32,13 @@ const adminCourierProfileSelect = 'id,user_id,full_name,is_online,created_at,upd
 const adminInsightsPendingUserSelect = 'id,role,status,created_at';
 const adminDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)';
+const adminPaymentListSelect =
+  'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey(role,status,stores(name))';
 const userRoles = ['admin', 'logista', 'motoboy'] as const satisfies readonly UserRole[];
 const userStatuses = ['pendente', 'ativo', 'bloqueado'] as const satisfies readonly UserStatus[];
 const latestPendingUsersLimit = 5;
+const paymentVisibleRoles = ['logista', 'motoboy'] as const;
+const databaseNow = 'now';
 
 export interface PaginatedUsers {
   items: AdminUserListItem[];
@@ -81,6 +86,51 @@ export interface AdminDeliveryListItem {
 
 export interface PaginatedAdminDeliveries {
   items: AdminDeliveryListItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
+interface AdminPaymentStoreSummary {
+  name: string;
+}
+
+interface AdminPaymentUserSummaryRelation {
+  role: UserRole;
+  status: UserStatus;
+  stores?: AdminPaymentStoreSummary | AdminPaymentStoreSummary[] | null;
+}
+
+interface AdminPaymentRow {
+  id: string;
+  reference_month: string;
+  due_date: string;
+  paid: boolean;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+  users?: AdminPaymentUserSummaryRelation | AdminPaymentUserSummaryRelation[] | null;
+}
+
+export interface AdminPaymentListItem {
+  id: string;
+  reference_month: string;
+  due_date: string;
+  paid: boolean;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+  user: {
+    role: UserRole | null;
+    status: UserStatus | null;
+    store_name: string | null;
+  };
+}
+
+export interface PaginatedAdminPayments {
+  items: AdminPaymentListItem[];
   pagination: {
     page: number;
     limit: number;
@@ -139,6 +189,40 @@ const toAdminDeliveryListItem = (row: AdminDeliveryRow): AdminDeliveryListItem =
   updated_at: row.updated_at,
   store: normalizeDeliveryStoreSummary(row.stores),
 });
+
+const normalizePaymentUserRelation = (
+  relation: AdminPaymentRow['users'],
+): AdminPaymentListItem['user'] => {
+  const user = Array.isArray(relation) ? relation[0] : relation;
+  const stores = Array.isArray(user?.stores) ? user?.stores[0] : user?.stores;
+
+  return {
+    role: user?.role ?? null,
+    status: user?.status ?? null,
+    store_name: typeof stores?.name === 'string' ? stores.name : null,
+  };
+};
+
+const toAdminPaymentListItem = (row: AdminPaymentRow): AdminPaymentListItem => ({
+  id: row.id,
+  reference_month: row.reference_month,
+  due_date: row.due_date,
+  paid: row.paid,
+  paid_at: row.paid_at,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+  user: normalizePaymentUserRelation(row.users),
+});
+
+const logAdminPaymentMarkPaid = (paymentId: string, result: string) => {
+  console.log(
+    JSON.stringify({
+      event: 'payment_mark_paid',
+      payment_id: paymentId,
+      result,
+    }),
+  );
+};
 
 const createEmptyUserCounts = (): AdminInsights['user_counts'] => ({
   admin: {
@@ -225,6 +309,105 @@ export const listAdminDeliveries = async (
       total: count ?? 0,
     },
   };
+};
+
+export const listAdminPayments = async (
+  input: AdminListPaymentsQuery,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<PaginatedAdminPayments> => {
+  const offset = (input.page - 1) * input.limit;
+  let query = supabase
+    .from('payments')
+    .select(adminPaymentListSelect, { count: 'exact' })
+    .eq('paid', input.paid)
+    .in('users.role', input.role ? [input.role] : [...paymentVisibleRoles]);
+
+  if (input.referenceMonth) {
+    query = query.eq('reference_month', input.referenceMonth);
+  }
+
+  if (input.userStatus) {
+    query = query.eq('users.status', input.userStatus);
+  }
+
+  const { data, error, count } = await query
+    .order('reference_month', { ascending: false })
+    .order('due_date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(offset, offset + input.limit - 1);
+
+  if (error) {
+    throw new ApiError(500, 'ADMIN_PAYMENTS_LIST_FAILED', 'Listagem de pagamentos falhou');
+  }
+
+  return {
+    items: ((data ?? []) as AdminPaymentRow[]).map(toAdminPaymentListItem),
+    pagination: {
+      page: input.page,
+      limit: input.limit,
+      total: count ?? 0,
+    },
+  };
+};
+
+const getAdminPaymentById = async (
+  paymentId: string,
+  supabase: SupabaseClient,
+): Promise<AdminPaymentRow | null> => {
+  const { data, error } = await supabase
+    .from('payments')
+    .select(adminPaymentListSelect)
+    .eq('id', paymentId)
+    .maybeSingle<AdminPaymentRow>();
+
+  if (error) {
+    throw new ApiError(500, 'ADMIN_PAYMENT_MARK_PAID_FAILED', 'Marcacao de pagamento falhou');
+  }
+
+  return data ?? null;
+};
+
+export const markAdminPaymentPaid = async (
+  paymentId: string,
+  adminUserId: string,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<AdminPaymentListItem> => {
+  const { data: updated, error: updateError } = await supabase
+    .from('payments')
+    .update({
+      paid: true,
+      paid_at: databaseNow,
+      marked_by: adminUserId,
+    })
+    .eq('id', paymentId)
+    .eq('paid', false)
+    .select(adminPaymentListSelect)
+    .maybeSingle<AdminPaymentRow>();
+
+  if (updateError) {
+    logAdminPaymentMarkPaid(paymentId, 'failed');
+    throw new ApiError(500, 'ADMIN_PAYMENT_MARK_PAID_FAILED', 'Marcacao de pagamento falhou');
+  }
+
+  if (updated) {
+    logAdminPaymentMarkPaid(paymentId, 'marked_paid');
+    return toAdminPaymentListItem(updated);
+  }
+
+  const current = await getAdminPaymentById(paymentId, supabase);
+
+  if (!current) {
+    logAdminPaymentMarkPaid(paymentId, 'not_found');
+    throw new ApiError(404, 'PAYMENT_NOT_FOUND', 'Pagamento nao encontrado');
+  }
+
+  if (current.paid) {
+    logAdminPaymentMarkPaid(paymentId, 'idempotent');
+    return toAdminPaymentListItem(current);
+  }
+
+  logAdminPaymentMarkPaid(paymentId, 'failed');
+  throw new ApiError(500, 'ADMIN_PAYMENT_MARK_PAID_FAILED', 'Marcacao de pagamento falhou');
 };
 
 export const getAdminInsights = async (

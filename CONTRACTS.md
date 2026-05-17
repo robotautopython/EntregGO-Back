@@ -82,6 +82,8 @@ Todas as rotas admin exigem Bearer token de usuario autenticado, role `admin` e 
 - `GET /api/admin/users/:id`
 - `GET /api/admin/insights`
 - `GET /api/admin/deliveries`
+- `GET /api/admin/payments`
+- `PATCH /api/admin/payments/:id/mark-paid`
 - `PATCH /api/admin/users/:id/approve`
 - `PATCH /api/admin/users/:id/block`
 - `PATCH /api/admin/users/:id/unblock`
@@ -196,6 +198,80 @@ Resposta:
 ```
 
 Fora deste contrato: cancelamento, pagamento externo, alteracao de status, detalhe admin, dados de motoboy, busca textual, filtro por data, polling, realtime, push, cron e drawer por usuario.
+
+### `GET /api/admin/payments`
+
+Lista controles internos de pagamento externo para admin ativo. O EntregGO nao processa pagamento; este contrato apenas mostra registros ja existentes em `public.payments`, criados fora desta fatia.
+
+Query params (schema strict):
+
+- `page`: inteiro, minimo 1, default 1.
+- `limit`: inteiro, minimo 1, maximo 50, default 20.
+- `paid`: `true|false`, default `false`.
+- `referenceMonth`: opcional no formato `YYYY-MM`.
+- `role`: opcional, `logista|motoboy`.
+- `userStatus`: opcional, `pendente|ativo|bloqueado`.
+- Qualquer outro parametro, incluindo `status`, `user_id`, `email`, `amount`, `paymentMethod`, `gatewayId`, `pix`, `card` ou `receipt`, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O endpoint usa service role apenas no backend, exige admin ativo e retorna whitelist fixa.
+- A lista e paginada com `count: exact` no MVP e limite maximo 50.
+- Ordem fixa: `reference_month desc`, `due_date asc`, `id asc`.
+- A migration M-08 adiciona indice `(paid, reference_month desc, due_date asc, id asc)`.
+- A consulta nao pode fazer N+1 para montar usuario/loja.
+- A resposta nunca inclui `user_id`, `auth_id`, email, `owner_name`, `full_name`, `marked_by`, `approved_by`, documentos, Storage URLs, tokens, cookies, headers, service role, valor financeiro, metodo de pagamento, gateway id, PIX, cartao, boleto, comprovante, dados bancarios, repasse ou nota fiscal.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `VALIDATION_ERROR`, `ADMIN_PAYMENTS_LIST_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "reference_month": "2026-05",
+        "due_date": "2026-05-31",
+        "paid": false,
+        "paid_at": null,
+        "created_at": "2026-05-17T12:00:00.000Z",
+        "updated_at": "2026-05-17T12:00:00.000Z",
+        "user": {
+          "role": "logista",
+          "status": "ativo",
+          "store_name": "Nome da loja"
+        }
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total": 1 }
+  },
+  "message": "Pagamentos administrativos encontrados"
+}
+```
+
+### `PATCH /api/admin/payments/:id/mark-paid`
+
+Marca como pago um controle administrativo de pagamento externo ja realizado fora da plataforma.
+
+Parametros e body:
+
+- `id`: UUID do registro em `public.payments`.
+- Query vazia strict.
+- Body vazio strict.
+- Qualquer campo no body, incluindo `amount`, `value`, `paymentMethod`, `pix`, `card`, `receipt`, `bankData`, `paid_at`, `marked_by` ou `user_id`, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- Exige admin ativo.
+- Faz update condicional apenas quando `paid=false`.
+- Na primeira marcacao, grava `paid=true`, `paid_at=now` e `marked_by=<admin domain user id>`.
+- E idempotente: se ja estiver `paid=true`, retorna 200 com o registro sanitizado sem sobrescrever `paid_at` nem `marked_by`.
+- Logs operacionais usam apenas `event`, `payment_id` e `result`; nao incluem payload, usuario, email, nome, valor, metodo, token, header ou dados financeiros.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `VALIDATION_ERROR`, `PAYMENT_NOT_FOUND`, `ADMIN_PAYMENT_MARK_PAID_FAILED`.
+
+Fora deste contrato: gateway, checkout, PIX, cartao, boleto, comprovante, upload, dados bancarios, valor financeiro, estorno, repasse, split, nota fiscal, geracao mensal automatica de registros, desmarcar pago e tela para loja/motoboy.
 
 ### `GET /api/admin/users/:id`
 
@@ -754,30 +830,28 @@ A M-06 fecha a fatia minima de acompanhamento da loja com `GET /api/deliveries/:
 O frontend admin F7 Track A ja possui estrutura visual para detalhes, documentos, entregas, confirmacao de pagamento externo e notas, mas estes contratos ainda nao existem no backend:
 
 - `GET /api/admin/users/:id/deliveries?page=1`
-- `GET /api/admin/payments`
-- `PATCH /api/admin/payments/:id/mark-paid`
 - signed URLs para documentos em Storage
 - tabela/endpoint de `admin_notes`
 
-### Escopo futuro de pagamento externo
+### Escopo de pagamento externo
 
 Nao havera pagamento integrado no EntregGO. A plataforma nao deve processar gateway, checkout, PIX, cartao, boleto, split, carteira, saldo, repasse ou conciliacao financeira. O escopo permitido e apenas um controle administrativo simples para o admin confirmar se um logista ou motoboy pagou fora da plataforma.
 
 A tabela `public.payments` criada na M-01 deve ser tratada como controle interno por usuario e mes (`user_id`, `reference_month`, `due_date`, `paid`, `paid_at`, `marked_by`). O frontend de loja/motoboy nao acessa nem visualiza esse controle. Escritas client-side continuam proibidas; somente backend com service role pode listar ou marcar.
 
-Contrato futuro minimo:
+Contrato minimo M-08:
 
-- `GET /api/admin/payments?page=1&limit=20&role=logista&status=pendente&referenceMonth=YYYY-MM&paid=false`
+- `GET /api/admin/payments?page=1&limit=20&role=logista&userStatus=ativo&referenceMonth=YYYY-MM&paid=false`
   - lista registros de controle de pagamento externo, paginados;
-  - pode trazer resumo sanitizado do usuario (`id`, `email`, `role`, `status`, `store_name` quando existir);
+  - traz apenas resumo sanitizado do usuario (`role`, `status`, `store_name`);
   - nao retorna dado financeiro sensivel porque nao existe transacao financeira na plataforma.
 - `PATCH /api/admin/payments/:id/mark-paid`
   - marca o controle como pago;
   - idempotente quando ja estiver pago;
-  - seta `paid=true`, `paid_at=now` e `marked_by=<admin.id>`;
+  - seta `paid=true`, `paid_at=now` e `marked_by=<admin.id>` internamente;
   - nao aceita valor, metodo de pagamento, comprovante, gateway id ou dados bancarios.
 
-Fora de escopo: cobranca automatica, upload de comprovante, integracao financeira, notificacao de cobranca, historico contabil, estorno, split, repasse e exibicao para logista/motoboy.
+Fora de escopo: criacao/geracao mensal de registros, cobranca automatica, upload de comprovante, integracao financeira, notificacao de cobranca, historico contabil, estorno, split, repasse, nota fiscal e exibicao para logista/motoboy.
 
 Qualquer contrato com documentos, CNH, fotos, auditoria administrativa ou PII exige Security Validator. O controle de pagamento externo nao e gateway financeiro, mas ainda exige auditoria de quem marcou e protecao contra acesso indevido. Qualquer contrato com agregacoes, historico grande, indices ou listas volumosas exige Performance Validator.
 

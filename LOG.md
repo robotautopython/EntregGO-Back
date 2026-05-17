@@ -699,3 +699,17 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Smoke autenticado:** com dados ficticios temporarios, admin ativo consultou `GET /api/admin/deliveries?page=1&limit=20`; filtro `status=entregue` funcionou; `limit=51`, `unknown=1` e `courier_id=...` retornaram `VALIDATION_ERROR`; usuario `logista` recebeu `FORBIDDEN_ROLE`. Payloads de sucesso ficaram sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, `full_name`, documentos, Storage URLs, `Authorization`, `Bearer`, token ou service role.
 
 **Cleanup:** cleanup em `finally` removeu os recursos temporarios; verificacao final retornou `delivery_residue=0`, `store_residue=0`, `courier_residue=0`, `domain_residue=0`, `auth_residue=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+## 2026-05-17 - M-08 CONTROLE ADMINISTRATIVO DE PAGAMENTO EXTERNO BACKEND LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada localmente a M-08 backend-first para controle administrativo simples de pagamento externo. Foram adicionados `GET /api/admin/payments` e `PATCH /api/admin/payments/:id/mark-paid` no `adminRouter`, sempre com `authenticate`, `requireActiveUser` e `requireRoles('admin')`. A listagem usa query strict (`page`, `limit<=50`, `paid`, `referenceMonth`, `role`, `userStatus`), `count: exact`, ordenacao `reference_month desc, due_date asc, id asc`, resposta sanitizada com `user.role`, `user.status` e `user.store_name`, sem dados financeiros/PII proibidos. A marcacao usa params UUID, query/body vazios strict, update condicional `paid=false`, grava `paid=true`, `paid_at=now` e `marked_by=<admin domain user id>`, e e idempotente sem sobrescrever auditoria quando ja estiver pago.
+**Arquivos modificados:** `src/routes/admin.routes.ts`, `src/controllers/admin.controller.ts`, `src/services/admin.service.ts`, `src/validators/admin.validators.ts`, `tests/admin-routes.spec.ts`, `supabase/migrations/20260517193000_m08_admin_payments_reference_month_index.sql`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Agentes/gates utilizados:** Camisa10, Cetico, ImpactValidator, SecurityValidator, PerformanceValidator, Documentador
+**Status:** implementado e validado localmente; indice remoto aplicado e confirmado; commit, push, deploy e smoke pos-deploy pendentes
+
+**Ressalvas incorporadas:** A M-08 nao cria registros mensais de pagamento, nao desmarca pagamento, nao integra gateway/checkout/PIX/cartao/boleto, nao aceita valor, metodo, comprovante, upload, dados bancarios, repasse ou nota fiscal, e nao libera tela para loja/motoboy. O contrato evita `status` ambiguo e usa `userStatus`. A migration aditiva cria `idx_payments_paid_reference_month_due_date_id` para sustentar `paid`, `referenceMonth` e ordenacao deterministica; o SQL remoto foi aplicado pelo operador e confirmado em `pg_indexes`.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 174 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
+
+**Fora do escopo preservado:** frontend real de pagamentos, criacao/geracao mensal de `payments`, desmarcar pago, gateway, checkout, PIX, cartao, boleto, comprovante, upload, dados bancarios, repasse, nota fiscal, exibicao para loja/motoboy, documentos/Storage, realtime, push, cron e dashboards complexos. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.

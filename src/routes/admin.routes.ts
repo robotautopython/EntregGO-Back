@@ -6,7 +6,9 @@ import {
   getAdminInsightsController,
   getUserDetailController,
   listAdminDeliveriesController,
+  listAdminPaymentsController,
   listUsersController,
+  markAdminPaymentPaidController,
   unblockUserController,
 } from '../controllers/admin.controller.js';
 import { authenticate, requireActiveUser, requireRoles } from '../middlewares/auth.middleware.js';
@@ -15,7 +17,11 @@ import { asyncHandler } from '../utils/async-handler.js';
 import {
   adminInsightsQuerySchema,
   adminListDeliveriesQuerySchema,
+  adminListPaymentsQuerySchema,
   adminListUsersQuerySchema,
+  emptyAdminActionBodySchema,
+  emptyAdminActionQuerySchema,
+  paymentIdParamsSchema,
   userIdParamsSchema,
 } from '../validators/admin.validators.js';
 
@@ -33,6 +39,22 @@ adminRouter.get(
   '/deliveries',
   validateRequest({ query: adminListDeliveriesQuerySchema }),
   asyncHandler(listAdminDeliveriesController),
+);
+
+adminRouter.get(
+  '/payments',
+  validateRequest({ query: adminListPaymentsQuerySchema }),
+  asyncHandler(listAdminPaymentsController),
+);
+
+adminRouter.patch(
+  '/payments/:id/mark-paid',
+  validateRequest({
+    params: paymentIdParamsSchema,
+    query: emptyAdminActionQuerySchema,
+    body: emptyAdminActionBodySchema,
+  }),
+  asyncHandler(markAdminPaymentPaidController),
 );
 
 adminRouter.get(

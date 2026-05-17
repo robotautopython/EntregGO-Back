@@ -18,12 +18,37 @@ export const adminListDeliveriesQuerySchema = z
   })
   .strict();
 
+export const adminListPaymentsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    paid: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    referenceMonth: z
+      .string()
+      .regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/)
+      .optional(),
+    role: z.enum(['logista', 'motoboy']).optional(),
+    userStatus: z.enum(['pendente', 'ativo', 'bloqueado']).optional(),
+  })
+  .strict();
+
 export const adminInsightsQuerySchema = z.object({}).strict();
+export const emptyAdminActionQuerySchema = z.object({}).strict();
+export const emptyAdminActionBodySchema = z.object({}).strict();
 
 export const userIdParamsSchema = z.object({
   id: z.uuid(),
 });
 
+export const paymentIdParamsSchema = z.object({
+  id: z.uuid(),
+});
+
 export type AdminListDeliveriesQuery = z.infer<typeof adminListDeliveriesQuerySchema>;
+export type AdminListPaymentsQuery = z.infer<typeof adminListPaymentsQuerySchema>;
 export type AdminListUsersQuery = z.infer<typeof adminListUsersQuerySchema>;
+export type PaymentIdParams = z.infer<typeof paymentIdParamsSchema>;
 export type UserIdParams = z.infer<typeof userIdParamsSchema>;

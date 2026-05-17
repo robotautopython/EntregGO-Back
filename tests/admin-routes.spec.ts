@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   AdminCourierProfile,
@@ -856,6 +856,406 @@ describe('admin deliveries list route', () => {
     expect(response.body).toMatchObject({
       success: false,
       error: { code: 'ADMIN_DELIVERIES_LIST_FAILED' },
+    });
+  });
+});
+
+const adminPaymentRow = {
+  id: '99999999-9999-4999-8999-999999999999',
+  reference_month: '2026-05',
+  due_date: '2026-05-31',
+  paid: false,
+  paid_at: null,
+  marked_by: null,
+  created_at: '2026-05-17T12:00:00.000Z',
+  updated_at: '2026-05-17T12:00:00.000Z',
+  users: {
+    id: activeStoreUser.id,
+    auth_id: activeStoreUser.auth_id,
+    email: activeStoreUser.email,
+    role: activeStoreUser.role,
+    status: activeStoreUser.status,
+    owner_name: storeProfile.owner_name,
+    full_name: courierProfile.full_name,
+    stores: {
+      name: storeProfile.name,
+      owner_name: storeProfile.owner_name,
+      logo_url: 'https://storage.example/logo.png',
+    },
+  },
+  user_id: activeStoreUser.id,
+  auth_id: activeStoreUser.auth_id,
+  email: activeStoreUser.email,
+  owner_name: storeProfile.owner_name,
+  full_name: courierProfile.full_name,
+  receipt_url: 'https://storage.example/receipt.png',
+  payment_method: 'pix',
+  amount: 100,
+};
+
+const paidAdminPaymentRow = {
+  ...adminPaymentRow,
+  paid: true,
+  paid_at: '2026-05-17T12:30:00.000Z',
+  updated_at: '2026-05-17T12:30:00.000Z',
+  marked_by: activeAdmin.id,
+};
+
+const createAdminPaymentsListTable = ({
+  rows,
+  count,
+  error = null,
+}: {
+  rows: Record<string, unknown>[] | null;
+  count: number | null;
+  error?: unknown;
+}) => {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    in: vi.fn(() => builder),
+    order: vi.fn(() => builder),
+    range: vi.fn().mockResolvedValue({ data: rows, error, count }),
+  };
+
+  return builder;
+};
+
+const createAdminPaymentUpdateTable = ({
+  row,
+  error = null,
+}: {
+  row: Record<string, unknown> | null;
+  error?: unknown;
+}) => {
+  const builder = {
+    update: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    select: vi.fn(() => builder),
+    maybeSingle: vi.fn().mockResolvedValue({ data: row, error }),
+  };
+
+  return builder;
+};
+
+const createAdminPaymentDetailTable = ({
+  row,
+  error = null,
+}: {
+  row: Record<string, unknown> | null;
+  error?: unknown;
+}) => {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    maybeSingle: vi.fn().mockResolvedValue({ data: row, error }),
+  };
+
+  return builder;
+};
+
+const mockAdminPaymentTables = (
+  authUser: DomainUser,
+  paymentTables: Array<
+    | ReturnType<typeof createAdminPaymentsListTable>
+    | ReturnType<typeof createAdminPaymentUpdateTable>
+    | ReturnType<typeof createAdminPaymentDetailTable>
+  >,
+) => {
+  const usersTable = createSelectTableByColumn({
+    auth_id: {
+      data: authUser,
+      error: null,
+    },
+  });
+  const queue = [...paymentTables];
+
+  supabaseMock.from.mockImplementation((table: string) => {
+    if (table === 'users') return usersTable;
+    if (table === 'payments') return queue.shift() ?? createAdminPaymentDetailTable({ row: null });
+    return createSelectTableByColumn({});
+  });
+
+  return usersTable;
+};
+
+describe('admin payments route', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('rejects the payment list without a bearer token', async () => {
+    const response = await request(app).get('/api/admin/payments').expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it('rejects the payment list for authenticated non-admin users', async () => {
+    mockAuthUser('auth-store');
+    supabaseMock.from.mockReturnValue(
+      createSelectTableByColumn({
+        auth_id: {
+          data: activeStoreUser,
+          error: null,
+        },
+      }),
+    );
+
+    const response = await request(app)
+      .get('/api/admin/payments')
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it.each([
+    [pendingAdmin, 'auth-pending-admin', 'USER_PENDING'],
+    [blockedAdmin, 'auth-blocked-admin', 'USER_BLOCKED'],
+  ])(
+    'rejects the payment list for admin users with status %s',
+    async (domainUser, authId, code) => {
+      mockAuthUser(authId);
+      supabaseMock.from.mockReturnValue(
+        createSelectTableByColumn({
+          auth_id: {
+            data: domainUser,
+            error: null,
+          },
+        }),
+      );
+
+      const response = await request(app)
+        .get('/api/admin/payments')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: { code },
+      });
+    },
+  );
+
+  it('lists pending payments with strict filters and a sanitized user summary', async () => {
+    mockAuthUser();
+    const paymentsTable = createAdminPaymentsListTable({
+      rows: [adminPaymentRow],
+      count: 1,
+    });
+    mockAdminPaymentTables(activeAdmin, [paymentsTable]);
+
+    const response = await request(app)
+      .get('/api/admin/payments?referenceMonth=2026-05&role=logista&userStatus=ativo')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(paymentsTable.select).toHaveBeenCalledWith(
+      'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey(role,status,stores(name))',
+      { count: 'exact' },
+    );
+    expect(paymentsTable.eq).toHaveBeenCalledWith('paid', false);
+    expect(paymentsTable.eq).toHaveBeenCalledWith('reference_month', '2026-05');
+    expect(paymentsTable.eq).toHaveBeenCalledWith('users.status', 'ativo');
+    expect(paymentsTable.in).toHaveBeenCalledWith('users.role', ['logista']);
+    expect(paymentsTable.order).toHaveBeenNthCalledWith(1, 'reference_month', {
+      ascending: false,
+    });
+    expect(paymentsTable.order).toHaveBeenNthCalledWith(2, 'due_date', { ascending: true });
+    expect(paymentsTable.order).toHaveBeenNthCalledWith(3, 'id', { ascending: true });
+    expect(paymentsTable.range).toHaveBeenCalledWith(0, 19);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        items: [
+          {
+            id: adminPaymentRow.id,
+            reference_month: adminPaymentRow.reference_month,
+            due_date: adminPaymentRow.due_date,
+            paid: false,
+            paid_at: null,
+            created_at: adminPaymentRow.created_at,
+            updated_at: adminPaymentRow.updated_at,
+            user: {
+              role: 'logista',
+              status: 'ativo',
+              store_name: storeProfile.name,
+            },
+          },
+        ],
+        pagination: { page: 1, limit: 20, total: 1 },
+      },
+      message: 'Pagamentos administrativos encontrados',
+    });
+
+    const serializedData = JSON.stringify(response.body.data);
+    expect(serializedData).not.toContain('user_id');
+    expect(serializedData).not.toContain('auth_id');
+    expect(serializedData).not.toContain('email');
+    expect(serializedData).not.toContain('owner_name');
+    expect(serializedData).not.toContain('full_name');
+    expect(serializedData).not.toContain('marked_by');
+    expect(serializedData).not.toContain('receipt');
+    expect(serializedData).not.toContain('payment_method');
+    expect(serializedData).not.toContain('amount');
+  });
+
+  it.each(['limit=51', 'status=pendente', 'user_id=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'])(
+    'rejects invalid or unknown payment query parameters: %s',
+    async (queryString) => {
+      mockAuthUser();
+      const paymentsTable = createAdminPaymentsListTable({
+        rows: [],
+        count: 0,
+      });
+      mockAdminPaymentTables(activeAdmin, [paymentsTable]);
+
+      const response = await request(app)
+        .get(`/api/admin/payments?${queryString}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      expect(paymentsTable.select).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns a standardized failure when the payment list query fails', async () => {
+    mockAuthUser();
+    const paymentsTable = createAdminPaymentsListTable({
+      rows: null,
+      count: null,
+      error: { message: 'db down' },
+    });
+    mockAdminPaymentTables(activeAdmin, [paymentsTable]);
+
+    const response = await request(app)
+      .get('/api/admin/payments')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'ADMIN_PAYMENTS_LIST_FAILED' },
+    });
+  });
+
+  it('marks an unpaid payment as paid with server-side audit fields', async () => {
+    mockAuthUser();
+    const updateTable = createAdminPaymentUpdateTable({
+      row: paidAdminPaymentRow,
+    });
+    mockAdminPaymentTables(activeAdmin, [updateTable]);
+
+    const response = await request(app)
+      .patch(`/api/admin/payments/${adminPaymentRow.id}/mark-paid`)
+      .set('Authorization', 'Bearer admin-token')
+      .send({})
+      .expect(200);
+
+    expect(updateTable.update).toHaveBeenCalledWith({
+      paid: true,
+      paid_at: 'now',
+      marked_by: activeAdmin.id,
+    });
+    expect(updateTable.eq).toHaveBeenNthCalledWith(1, 'id', adminPaymentRow.id);
+    expect(updateTable.eq).toHaveBeenNthCalledWith(2, 'paid', false);
+    expect(response.body).toMatchObject({
+      success: true,
+      data: {
+        id: adminPaymentRow.id,
+        paid: true,
+        paid_at: paidAdminPaymentRow.paid_at,
+        user: {
+          role: 'logista',
+          status: 'ativo',
+          store_name: storeProfile.name,
+        },
+      },
+      message: 'Pagamento marcado como pago',
+    });
+    expect(JSON.stringify(response.body.data)).not.toContain('marked_by');
+  });
+
+  it('is idempotent when the payment is already paid and preserves original audit fields', async () => {
+    mockAuthUser();
+    const updateTable = createAdminPaymentUpdateTable({ row: null });
+    const detailTable = createAdminPaymentDetailTable({ row: paidAdminPaymentRow });
+    mockAdminPaymentTables(activeAdmin, [updateTable, detailTable]);
+
+    const response = await request(app)
+      .patch(`/api/admin/payments/${adminPaymentRow.id}/mark-paid`)
+      .set('Authorization', 'Bearer admin-token')
+      .send({})
+      .expect(200);
+
+    expect(updateTable.update).toHaveBeenCalledWith({
+      paid: true,
+      paid_at: 'now',
+      marked_by: activeAdmin.id,
+    });
+    expect(detailTable.select).toHaveBeenCalledWith(
+      'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey(role,status,stores(name))',
+    );
+    expect(response.body.data.paid).toBe(true);
+    expect(response.body.data.paid_at).toBe(paidAdminPaymentRow.paid_at);
+    expect(JSON.stringify(response.body.data)).not.toContain(activeAdmin.id);
+  });
+
+  it.each([
+    ['amount', { amount: 100 }],
+    ['paymentMethod', { paymentMethod: 'pix' }],
+    ['paid_at', { paid_at: '2026-05-17T12:00:00.000Z' }],
+    ['marked_by', { marked_by: activeAdmin.id }],
+  ])('rejects forbidden mark-paid body field: %s', async (_field, body) => {
+    mockAuthUser();
+    const updateTable = createAdminPaymentUpdateTable({ row: paidAdminPaymentRow });
+    mockAdminPaymentTables(activeAdmin, [updateTable]);
+
+    const response = await request(app)
+      .patch(`/api/admin/payments/${adminPaymentRow.id}/mark-paid`)
+      .set('Authorization', 'Bearer admin-token')
+      .send(body)
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(updateTable.update).not.toHaveBeenCalled();
+  });
+
+  it('returns PAYMENT_NOT_FOUND when marking a missing payment as paid', async () => {
+    mockAuthUser();
+    const updateTable = createAdminPaymentUpdateTable({ row: null });
+    const detailTable = createAdminPaymentDetailTable({ row: null });
+    mockAdminPaymentTables(activeAdmin, [updateTable, detailTable]);
+
+    const response = await request(app)
+      .patch('/api/admin/payments/ffffffff-ffff-4fff-8fff-ffffffffffff/mark-paid')
+      .set('Authorization', 'Bearer admin-token')
+      .send({})
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'PAYMENT_NOT_FOUND' },
     });
   });
 });
