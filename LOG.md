@@ -713,3 +713,21 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 174 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
 
 **Fora do escopo preservado:** frontend real de pagamentos, criacao/geracao mensal de `payments`, desmarcar pago, gateway, checkout, PIX, cartao, boleto, comprovante, upload, dados bancarios, repasse, nota fiscal, exibicao para loja/motoboy, documentos/Storage, realtime, push, cron e dashboards complexos. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+## 2026-05-17 - M-08 FECHAMENTO OPERACIONAL POS-SQL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** A M-08 backend-first foi fechada operacionalmente em producao. O indice remoto `idx_payments_paid_reference_month_due_date_id` ja havia sido aplicado pelo operador e confirmado em `pg_indexes`. O backend funcional foi publicado no commit `874435496d4f63c505095c910f293ce6a3f64afb`, seguido do hardening `d47e9fecae486824c8f2f0898e65d09830bb3805` para garantir filtro por `users` com embed `inner`.
+**Arquivos modificados nesta rodada documental:** `STATUS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, DeployObservability, Documentador
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** backend `npm run typecheck`, `npm test` (174), `npm run lint`, `npm run build` e `git diff --check` passaram. Apos o hardening do embed `inner`, a bateria completa foi repetida com o mesmo resultado.
+
+**Deploy e smoke publico:** GitHub/Vercel retornou `success` para `d47e9fecae486824c8f2f0898e65d09830bb3805`. `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET /api/admin/payments` sem token retornou `401 AUTH_REQUIRED`; `PATCH /api/admin/payments/<uuid>/mark-paid` sem token retornou `401 AUTH_REQUIRED`.
+
+**Smoke autenticado:** com dados ficticios temporarios, admin ativo consultou `GET /api/admin/payments?page=1&limit=20&paid=false&referenceMonth=2026-05&role=logista&userStatus=ativo`; query invalida `status=pendente` retornou `VALIDATION_ERROR`; logista e motoboy receberam `FORBIDDEN_ROLE`; `PATCH /api/admin/payments/:id/mark-paid` marcou pagamento como pago; retry retornou `200` preservando `paid_at` e `marked_by`. Payloads de sucesso ficaram sem `user_id`, `auth_id`, email, `owner_name`, `full_name`, `marked_by`, tokens, headers, service role, valor, metodo, PIX, cartao, comprovante, gateway ou dados bancarios.
+
+**Cleanup:** cleanup em `finally` removeu os recursos temporarios; verificacao final retornou `payment_residue=0`, `domain_residue=0` e `auth_residue=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+**Fora do escopo preservado:** frontend real de pagamentos, criacao/geracao mensal de `payments`, desmarcar pago, gateway, checkout, PIX, cartao, boleto, comprovante, upload, dados bancarios, repasse, nota fiscal, exibicao para loja/motoboy, documentos/Storage, realtime, push, cron e dashboards complexos.
