@@ -590,3 +590,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Observabilidade:** `gh` local continuou sem autenticacao (`401 Unauthorized`), portanto checks GitHub/Vercel nao foram consultados via CLI. Nenhum token, header, cookie, service role ou secret foi impresso.
 
 **Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo e dados pessoais do motoboy.
+
+## 2026-05-17 - FATIA 4B HISTORICO REAL DO MOTOBOY AUDITADA
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Iniciada e fechada localmente a Fatia 4B. A auditoria confirmou que `GET /api/deliveries/history` ja estava implementado no backend real, antes de `/:id`, com `authenticate`, `requireActiveUser`, `requireRoles('motoboy')`, query strict (`page`, `limit<=50`, `status`) e service `listCourierDeliveryHistory` derivando o perfil por `couriers.user_id = domainUser.id`. A rota nao exige `is_online=true`, filtra sempre por `delivery_requests.courier_id=<courier.id>`, ordena por `created_at desc`, pagina com `count: exact` e retorna somente campos sanitizados do historico com `stores(name,address)`.
+**Arquivos modificados:** `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `/motoboy/historico` ja consumia `GET /api/deliveries/history` via API REST e Bearer token, sem Supabase direto.
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, TestEngineer, Documentador
+**Status:** fechado localmente; commit/deploy pendentes
+
+**Gates:** ImpactValidator aprovado sem necessidade de implementacao funcional nova; SecurityValidator aprovado, confirmando `courier_id` derivado da sessao, historico permitido offline, query strict e ausencia de `store_id`, `courier_id`, `owner_name`, `logo_url`, documentos, Storage, email, tokens ou headers na resposta/UI; TestEngineer aprovado, confirmando cobertura minima backend/frontend.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 133 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (9 arquivos, 64 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Nenhum secret, token, cookie, header Authorization ou service role foi impresso. `.env.local` segue ignorado por `.gitignore`.
+
+**Fora do escopo preservado:** codigo funcional novo, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, detalhe unico do historico, busca textual, filtro por data e dados pessoais do motoboy.

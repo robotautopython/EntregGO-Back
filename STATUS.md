@@ -12,11 +12,11 @@
 
 ## Proximas Tarefas
 
-- [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento e historico do motoboy.
+- [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento, detalhe unico do historico ou dados pessoais novos do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
 - [ ] Especificar controle administrativo de pagamento externo: `GET /api/admin/payments` e `PATCH /api/admin/payments/:id/mark-paid`, sem gateway/checkout/PIX/cartao, com auditoria simples de quem marcou.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
-- [ ] Planejar detalhe e historico do motoboy sem quebrar o contrato PII da Fatia 1.
+- [ ] Planejar detalhe unico do historico do motoboy somente com contrato backend novo e validadores.
 
 ## Concluido
 
@@ -73,10 +73,11 @@
 - [x] M-06.1 auditada localmente: backend ja retornava o contrato correto para o motoboy (`store.name`/`store.address` pre-aceite e tambem pos-aceite, com `destination_address`/`notes` apenas em corrida ativa/status do courier atribuido); logs de aceite/status seguem sem PII, payload, header ou token. A unica correcao runtime ficou no frontend, normalizando observacoes em branco antes de renderizar. Sem SQL/migration/RLS/grants/policies e sem realtime/push/polling/cron/cancelamento.
 - [x] M-06.1 publicada em `origin/main`: backend `3c168b5` e frontend `5005d84` enviados; smoke publico confirmou `/api/health` `200`, `/api/deliveries/active`, `/api/deliveries/available` e `/api/deliveries/:id/accept` sem token com `401`, e frontend `/motoboy` com `200`. Checks GitHub/Vercel nao foram lidos via `gh` porque o CLI local retornou `401 Unauthorized`; smoke autenticado nao foi executado por falta de credencial segura no contexto.
 - [x] Fechamento operacional M-06.1 validado em producao: backend final `5ea06bc` e frontend final `038eb2b` confirmados em `origin/main`; smoke publico repetido com sucesso; smoke autenticado API+UI executado com credenciais locais seguras, dados ficticios, sem imprimir tokens/headers/secrets, validando loja cria entrega, motoboy ve fila sem destino/notas, aceita, `/active` e UI `/motoboy` mostram loja/coleta/destino/observacao pos-aceite, sem campos sensiveis, e cleanup completo (`domain_residue=0`, `auth_residue=0`).
+- [x] Fatia 4B historico real do motoboy auditada localmente: `GET /api/deliveries/history` ja estava implementado e alinhado ao contrato, com `courier_id` derivado por `couriers.user_id`, sem exigir `is_online`, query strict (`page`, `limit<=50`, `status`) e resposta sanitizada com loja, destino, observacao e timestamps operacionais. Sem codigo funcional novo, sem SQL/migration/RLS/grants/policies e sem realtime/push/polling/cron/cancelamento. Gates ImpactValidator, SecurityValidator e TestEngineer aprovaram; backend `typecheck`, `test` (133), `lint`, `build` e `git diff --check` passaram, assim como a matriz frontend correlata.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real, as transicoes pos-aceite REST e o detalhe da propria entrega para loja existem, mas ainda sem realtime/push.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas, detalhe unico do historico do motoboy ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real, as transicoes pos-aceite REST, o detalhe da propria entrega para loja e o historico real paginado do motoboy existem, mas ainda sem realtime/push.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
@@ -87,6 +88,6 @@
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (inclui M-06.1; backend 133 testes, frontend 64 testes)
+**Testes:** passando no backend e frontend (inclui Fatia 4B; backend 133 testes, frontend 64 testes)
 **Deploy:** frontend e backend publicados em Vercel
 **Riscos abertos:** 4

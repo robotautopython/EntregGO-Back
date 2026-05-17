@@ -591,6 +591,8 @@ Fora desta fatia: cancelamento, realtime, push/Web Push/VAPID, cron/expiracao au
 
 Lista o historico paginado de entregas atribuidas ao motoboy autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo` e perfil em `couriers`. Nao exige `is_online=true`, porque historico nao representa disponibilidade operacional.
 
+Estado em 2026-05-17: contrato auditado contra o backend real; a rota esta implementada sem mudanca funcional nova nesta rodada.
+
 Query strict:
 
 - `page`: inteiro >= 1, default `1`.
