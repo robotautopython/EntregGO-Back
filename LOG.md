@@ -652,3 +652,19 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 148 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (10 arquivos, 70 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. `.env.local` segue ignorado por `.gitignore` e nao aparece em `git ls-files`.
 
 **Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, detalhe admin, historico admin, busca textual, filtro por data, pagamento externo, Storage/documentos, GPS/mapa/raio, dados pessoais novos do motoboy e qualquer exposicao de token, cookie, header Authorization, service role ou secret.
+
+## 2026-05-17 - FATIA 4C FECHAMENTO OPERACIONAL EM PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Fechado o ciclo operacional da Fatia 4C. O backend foi publicado em `origin/main` no commit `704694c4d6c63d1c3962e3b1353434f41c2c64c7`; o frontend relacionado foi publicado em `2f6f3bd638fd3f0810eaeed3b438ab9ab4b6f9ae`. A rota `GET /api/deliveries/history/:id` foi validada em producao com smoke publico e autenticado.
+**Arquivos modificados nesta rodada documental:** `STATUS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, DeployObservability
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** backend `npm run typecheck`, `npm test` (148), `npm run lint`, `npm run build`; frontend `npm run typecheck`, `npm test` (70), `npm run lint`, `npm run build`. `git diff --check` sem erro de whitespace, apenas avisos LF/CRLF do Windows.
+
+**Smoke publico:** `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET https://entreggoback.vercel.app/api/deliveries/history/<uuid>` sem token retornou `401 AUTH_REQUIRED`; `https://entreggo.vercel.app/motoboy/historico/<uuid>` retornou `200`.
+
+**Smoke autenticado:** com dados ficticios temporarios, API confirmou detalhe do proprio historico do courier autenticado, offline permitido, resposta sanitizada sem campos internos, entrega de outro courier com `DELIVERY_NOT_FOUND`, query `courier_id` proibida com `VALIDATION_ERROR` e logista com `FORBIDDEN_ROLE`. UI confirmou login real, detalhe renderizado, nao encontrado honesto para entrega de outro courier e DOM sem marcadores proibidos.
+
+**Cleanup:** cleanup completo com `domain_residue=0`, `store_residue=0`, `courier_residue=0`, `delivery_residue=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
