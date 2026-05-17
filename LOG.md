@@ -731,3 +731,17 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Cleanup:** cleanup em `finally` removeu os recursos temporarios; verificacao final retornou `payment_residue=0`, `domain_residue=0` e `auth_residue=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
 
 **Fora do escopo preservado:** frontend real de pagamentos, criacao/geracao mensal de `payments`, desmarcar pago, gateway, checkout, PIX, cartao, boleto, comprovante, upload, dados bancarios, repasse, nota fiscal, exibicao para loja/motoboy, documentos/Storage, realtime, push, cron e dashboards complexos.
+
+## 2026-05-17 - M-08 UI ADMIN DE PAGAMENTO EXTERNO SINCRONIZADA NO BACKEND
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** A documentacao backend foi sincronizada apos a publicacao e validacao em producao da UI admin de pagamento externo. O frontend funcional `eb7b54faa6223091a341d75620ab96557e29934f` e o commit documental `dcd2325c190623803dbf38e05ec685c9500b53d4` consomem o backend M-08 final `d47e9fecae486824c8f2f0898e65d09830bb3805`. Nao houve alteracao de runtime no backend nesta rodada.
+**Arquivos modificados:** `STATUS.md`, `LOG.md`, `CONTRACTS.md`
+**Agentes utilizados:** Camisa10, Documentador
+**Status:** fechado documentalmente
+
+**Smoke de producao recebido:** `/admin/pagamentos` retornou `200`; `/api/health` retornou `200`; `GET /api/admin/payments` sem token retornou `401`; smoke autenticado API+UI passou com dados ficticios; retry de `PATCH /api/admin/payments/:id/mark-paid` preservou `paid_at`; cleanup final retornou `payment_residue=0` e `domain_residue=0`.
+
+**Ajuste documental:** `STATUS.md` deixou de tratar a UI real de pagamentos como futura. `CONTRACTS.md` manteve os contratos REST M-08 inalterados e corrigiu apenas a secao de administracao pendente para registrar que pagamentos ja possuem backend e UI admin publicados.
+
+**Fora do escopo preservado:** gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago. Nenhum codigo, teste, migration, env ou contrato REST foi alterado.

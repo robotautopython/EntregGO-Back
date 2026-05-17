@@ -825,9 +825,11 @@ Fora desta fatia: busca textual, filtro por data, cancelamento, realtime, push/W
 
 A M-06 fecha a fatia minima de acompanhamento da loja com `GET /api/deliveries/:id`, permitindo que a loja veja a propria entrega criada por ela apos aceite e transicoes do motoboy, sem realtime, push, polling automatico, cancelamento ou dados pessoais do motoboy.
 
-## Admin ainda ausente no backend
+## Admin ainda ausente ou futuro no backend
 
-O frontend admin F7 Track A ja possui estrutura visual para detalhes, documentos, entregas, confirmacao de pagamento externo e notas, mas estes contratos ainda nao existem no backend:
+O frontend admin ja possui telas reais para usuarios, insights, entregas e confirmacao administrativa simples de pagamento externo. Pagamentos M-08 ja contam com contrato backend publicado e UI admin `/admin/pagamentos` validada em producao.
+
+Ainda nao existem no backend:
 
 - `GET /api/admin/users/:id/deliveries?page=1`
 - signed URLs para documentos em Storage
@@ -839,7 +841,7 @@ Nao havera pagamento integrado no EntregGO. A plataforma nao deve processar gate
 
 A tabela `public.payments` criada na M-01 deve ser tratada como controle interno por usuario e mes (`user_id`, `reference_month`, `due_date`, `paid`, `paid_at`, `marked_by`). O frontend de loja/motoboy nao acessa nem visualiza esse controle. Escritas client-side continuam proibidas; somente backend com service role pode listar ou marcar.
 
-Contrato minimo M-08:
+Contrato M-08 publicado:
 
 - `GET /api/admin/payments?page=1&limit=20&role=logista&userStatus=ativo&referenceMonth=YYYY-MM&paid=false`
   - lista registros de controle de pagamento externo, paginados;
@@ -851,7 +853,7 @@ Contrato minimo M-08:
   - seta `paid=true`, `paid_at=now` e `marked_by=<admin.id>` internamente;
   - nao aceita valor, metodo de pagamento, comprovante, gateway id ou dados bancarios.
 
-Fora de escopo: criacao/geracao mensal de registros, cobranca automatica, upload de comprovante, integracao financeira, notificacao de cobranca, historico contabil, estorno, split, repasse, nota fiscal e exibicao para logista/motoboy.
+Fora de escopo: gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, criacao/geracao mensal de registros, cobranca automatica, upload de comprovante, integracao financeira, notificacao de cobranca, historico contabil, estorno, repasse/split, nota fiscal, tela para loja/motoboy e desmarcar pago.
 
 Qualquer contrato com documentos, CNH, fotos, auditoria administrativa ou PII exige Security Validator. O controle de pagamento externo nao e gateway financeiro, mas ainda exige auditoria de quem marcou e protecao contra acesso indevido. Qualquer contrato com agregacoes, historico grande, indices ou listas volumosas exige Performance Validator.
 
