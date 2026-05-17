@@ -8,7 +8,6 @@
 
 ## Em Andamento
 
-- [ ] Validar M-06 em deploy/smoke autenticado quando houver ciclo operacional de publicacao.
 - [ ] Manter dashboards, controle simples de pagamento externo, documentos, historico admin, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
@@ -68,6 +67,7 @@
 - [x] Fatia 4A motoboy validada pos-deploy em producao: backend `a84df437cb30b62c592454fe22b25b173fce9f83` e frontend `b9239dcce3ac25535990d148f8f2480df1bcb232` publicados. Smoke publico confirmou `GET /api/health` -> `200`, `GET /api/deliveries/active` sem token -> `401 AUTH_REQUIRED`, `PATCH /api/deliveries/:id/status` sem token -> `401 AUTH_REQUIRED` e `/motoboy` -> `200`. Smoke API autenticado validou transicoes, idempotencia, isolamento de outro courier, payload strict, sanitizacao e remocao de `entregue` do `/active`; smoke UI autenticado com Playwright validou login real, botoes `Confirmar coleta`/`Iniciar transito`/`Concluir entrega`, timestamps no banco, remocao da corrida ativa e cleanup completo.
 - [x] Planejamento de pagamentos ajustado em 2026-05-17: nao havera pagamento integrado na plataforma; o escopo correto e apenas confirmacao administrativa simples de pagamento externo para logistas/motoboys, usando a tabela `payments` como controle interno.
 - [x] M-06 Core Flow implementado e validado localmente no backend: `GET /api/deliveries/:id` para `logista` ativo, com `store_id` derivado da sessao, query vazia strict, filtro server-side por `id` + `store_id`, `DELIVERY_NOT_FOUND` para inexistente/outra loja e resposta sanitizada sem `store_id`, `courier_id`, PII de motoboy, documentos, Storage, tokens ou headers. Sem SQL/migration/RLS/grants/policies, sem realtime/push/polling/cancelamento/cron. Backend `typecheck`, `test` (133), `lint`, `build`, `git diff --check`, `node --check scripts/smoke-auth-rls.mjs` e smoke autenticado local M-06 passaram com cleanup completo.
+- [x] M-06 validada pos-deploy em producao: backend `27987f0b54b6747c6dac5a9f5134f4f2c80d8b3e` e frontend `20ab39710367bfcb9565246daef292f275e3c370` publicados com Vercel `success`; smoke publico confirmou `GET /api/health` -> `200`, `GET /api/deliveries/:id` sem token -> `401 AUTH_REQUIRED` e `/loja/entregas/<uuid>` -> `200`; smoke autenticado validou loja criando entrega ficticia, motoboy aceitando e avancando para `em_transito`, loja dona abrindo detalhe com timeline real e resposta sanitizada, outra loja recebendo `DELIVERY_NOT_FOUND`, query proibida/UUID invalido com `VALIDATION_ERROR` e cleanup completo.
 
 ## Bloqueios
 

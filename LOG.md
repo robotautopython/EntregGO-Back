@@ -517,3 +517,15 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 133 testes), `npm run lint`, `npm run build`, `git diff --check` e `node --check scripts/smoke-auth-rls.mjs` passaram. Frontend `npm run typecheck`, `npm test` (9 arquivos, 62 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Smoke local minimo confirmou `GET /api/health` -> `200`, preflight CORS de `/api/auth/me` aceitando `http://127.0.0.1:3001`, `/login` -> `200` e renderizacao por navegador headless. Smoke autenticado local (`SMOKE_API_BASE_URL=http://127.0.0.1:4000 node scripts/smoke-auth-rls.mjs`) validou loja criando entrega ficticia, motoboy aceitando e avancando para `em_transito`, loja dona abrindo detalhe com timeline real e resposta sanitizada, outra loja recebendo `DELIVERY_NOT_FOUND`, query proibida com `VALIDATION_ERROR`, UUID invalido com `VALIDATION_ERROR` e cleanup completo. Nenhum secret, token, cookie ou header sensivel foi impresso.
 
 **Fora do escopo preservado:** realtime, push/Web Push/VAPID, polling automatico, cancelamento, cron/expiracao automatica, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio, dados pessoais do motoboy, SQL/migration/RLS/grants/policies.
+
+## 2026-05-17 - M-06 POS-DEPLOY PRODUCAO APROVADA
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Backend publicado em producao nos commits `18c87cd` e `27987f0b54b6747c6dac5a9f5134f4f2c80d8b3e`; frontend publicado nos commits `0a2f2fb` e `20ab39710367bfcb9565246daef292f275e3c370`. GitHub/Vercel reportou `success` e `Deployment has completed` nos dois repos. O smoke autenticado usou usuarios, perfis e entregas ficticios temporarios, com cleanup em `finally`, sem imprimir token, cookie, header Authorization, service role ou secret.
+**Arquivos criados:** nenhum
+**Arquivos modificados:** `STATUS.md`, `LOG.md`
+**Status:** fechado em producao
+
+**Validacoes pos-deploy:** Smoke publico confirmou `GET https://entreggoback.vercel.app/api/health` -> `200`, `GET /api/deliveries/<uuid>` sem token -> `401 AUTH_REQUIRED`, `https://entreggo.vercel.app/loja/entregas/<uuid>` -> `200` e chunk publicado da rota com marcadores de detalhe (`Atualizar` e `DELIVERY_NOT_FOUND`). Smoke autenticado contra `https://entreggoback.vercel.app` confirmou loja ativa criando entrega ficticia, motoboy ativo/online aceitando e avancando `aceita -> coletada -> em_transito`, loja dona abrindo `GET /api/deliveries/:id` com `status=em_transito`, `accepted_at`, `collected_at` e `in_transit_at` preenchidos, `delivered_at=null`, outra loja ativa recebendo `DELIVERY_NOT_FOUND`, query `store_id` proibida com `VALIDATION_ERROR`, UUID invalido com `VALIDATION_ERROR`, ausencia de `store_id`, `courier_id`, PII de motoboy, Storage, tokens e headers no detalhe, regressao M-05/RLS ainda aprovada e cleanup completo.
+
+**Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cancelamento, cron/expiracao automatica, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio e dados pessoais do motoboy.
