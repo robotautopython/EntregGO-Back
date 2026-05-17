@@ -1063,7 +1063,7 @@ describe('admin payments route', () => {
       .expect(200);
 
     expect(paymentsTable.select).toHaveBeenCalledWith(
-      'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey(role,status,stores(name))',
+      'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey!inner(role,status,stores(name))',
       { count: 'exact' },
     );
     expect(paymentsTable.eq).toHaveBeenCalledWith('paid', false);
@@ -1211,7 +1211,7 @@ describe('admin payments route', () => {
       marked_by: activeAdmin.id,
     });
     expect(detailTable.select).toHaveBeenCalledWith(
-      'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey(role,status,stores(name))',
+      'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey!inner(role,status,stores(name))',
     );
     expect(response.body.data.paid).toBe(true);
     expect(response.body.data.paid_at).toBe(paidAdminPaymentRow.paid_at);

@@ -33,7 +33,7 @@ const adminInsightsPendingUserSelect = 'id,role,status,created_at';
 const adminDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)';
 const adminPaymentListSelect =
-  'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey(role,status,stores(name))';
+  'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey!inner(role,status,stores(name))';
 const userRoles = ['admin', 'logista', 'motoboy'] as const satisfies readonly UserRole[];
 const userStatuses = ['pendente', 'ativo', 'bloqueado'] as const satisfies readonly UserStatus[];
 const latestPendingUsersLimit = 5;
