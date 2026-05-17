@@ -567,3 +567,13 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 133 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (9 arquivos, 64 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. Nenhum secret, token, cookie, header Authorization ou service role foi impresso. `.env.local` segue ignorado por `.gitignore`.
 
 **Fora do escopo preservado:** backend funcional novo, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo e dados pessoais do motoboy.
+
+## 2026-05-17 - M-06.1 POS-PUSH E SMOKE PUBLICO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Commits da M-06.1 enviados para `origin/main`: backend `3c168b5cf041bbde7a771c69a9b3c43ec5c005c3` e frontend `5005d847ec57d7835ed9ecf07ca870573dad31f9`. `git ls-remote` confirmou os dois SHAs em `refs/heads/main`.
+**Status:** publicado em `origin/main`; smoke publico aprovado com ressalvas de observabilidade
+
+**Validacoes pos-push:** Smoke publico confirmou `GET https://entreggoback.vercel.app/api/health` -> `200`, `GET /api/deliveries/active` sem token -> `401`, `GET /api/deliveries/available` sem token -> `401`, `POST /api/deliveries/<uuid>/accept` sem token -> `401` e `https://entreggo.vercel.app/motoboy` -> `200`. O `gh` local retornou `401 Unauthorized`, entao checks GitHub/Vercel nao foram consultados via CLI. Smoke autenticado nao foi executado porque nao havia credencial segura disponivel no contexto.
+
+**Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, dados pessoais do motoboy e logs com dados sensiveis.
