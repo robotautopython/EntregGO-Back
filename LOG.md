@@ -481,3 +481,39 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Decisao de tooling:** Playwright fica como ferramenta oficial de smoke UI autenticado no frontend. A instalacao local altera apenas `package.json` e `package-lock.json` do frontend e deve entrar em commit separado de tooling, sem misturar com a entrega funcional ja publicada.
 
 **Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling, cron, cancelamento, historico do motoboy, historico admin, pagamentos, Storage/documentos, geolocalizacao/GPS e disponibilidade por raio.
+
+## 2026-05-17 - PLANEJAMENTO DE PAGAMENTO EXTERNO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O escopo de pagamentos foi redefinido com base na decisao do produto: o EntregGO nao tera pagamento integrado. O modulo futuro sera apenas um controle administrativo simples para confirmar se logistas e motoboys pagaram fora da plataforma.
+**Arquivos modificados:** `PROJECT.md`, `STATUS.md`, `README.md`, `CONTRACTS.md`, `DECISIONS.md`, `LOG.md`
+**Status:** documental concluido
+
+**Decisao registrada:** `public.payments` deve ser tratado como controle interno por usuario/mes, com estado pago/pendente, `paid_at` e `marked_by`. Fora de escopo permanente para este modulo: checkout, gateway, PIX, cartao, boleto, split, repasse, carteira, saldo, conciliacao financeira e upload de comprovante.
+
+**Correcao de prioridade:** pagamento externo ficou apenas documentado como escopo futuro. O proximo passo nao deve ser pagamento; deve ser o fluxo principal loja -> motoboy -> loja, com detalhe/acompanhamento real da entrega para a loja.
+
+**Validacoes:** Mudanca documental/copy; rodar `git diff --check`. Implementacao funcional segue pendente de ImpactValidator antes de codigo.
+
+## 2026-05-17 - CORRECAO DE PRIORIDADE DO ROADMAP
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Foi corrigida a ordem sugerida apos o ajuste de pagamento externo. O controle de pagamento permanece documentado, mas nao e o proximo marco. A prioridade volta para completar o fluxo principal com dados reais: loja cria entrega, motoboy aceita e avanca status, loja acompanha o estado real da entrega.
+**Arquivos modificados:** `STATUS.md`, `README.md`, `CONTRACTS.md`, `LOG.md`
+**Status:** documental concluido
+
+**Proximo passo sugerido:** M-06 Core Flow - detalhe/acompanhamento real da entrega para a loja, provavelmente via `GET /api/deliveries/:id`, com filtro por loja autenticada, resposta sanitizada e testes de isolamento. Sem realtime, push, cron, cancelamento, historico admin ou pagamento externo nesta fatia.
+
+## 2026-05-17 - M-06 CORE FLOW LOJA ACOMPANHA ENTREGA REAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementado localmente `GET /api/deliveries/:id` para a loja acompanhar uma entrega real da propria loja. A rota usa `authenticate`, `requireActiveUser`, `requireRoles('logista')`, valida `id` como UUID e query vazia strict, resolve `stores.id` por `stores.user_id = domainUser.id` e consulta `delivery_requests` com filtro explicito `id=<id>` + `store_id=<loja da sessao>`. Entrega inexistente ou de outra loja retorna `DELIVERY_NOT_FOUND`; falha de consulta retorna `DELIVERY_GET_FAILED`. A resposta retorna somente `id`, `destination_address`, `notes`, `status`, `created_at`, `expires_at`, `accepted_at`, `collected_at`, `in_transit_at`, `delivered_at` e `updated_at`, sem `store_id`, `courier_id`, PII de motoboy, documentos, Storage, tokens ou headers.
+**Arquivos modificados (backend):** `src/routes/delivery.routes.ts`, `src/controllers/delivery.controller.ts`, `src/services/delivery.service.ts`, `src/validators/delivery.validators.ts`, `tests/delivery-routes.spec.ts`, `scripts/smoke-auth-rls.mjs`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Arquivos frontend relacionados:** `src/app/loja/entregas/[id]/page.tsx`, `src/components/loja/EntregaDetalhe.tsx`, `src/components/loja/NovaEntregaFlow.tsx`, `src/components/loja/HistoricoEntregas.tsx`, `src/lib/api.ts`, `src/types/delivery.ts`
+**Status:** fechado localmente; deploy/smoke de producao pendentes
+
+**Gates pre-codigo:** ImpactValidator aprovado (contrato aditivo, rotas fixas preservadas antes de `/:id`, sem alterar transicoes do motoboy); Security/PII aprovado (sessao deriva loja, query strict, filtro server-side, resposta sem identificadores internos ou dados pessoais do motoboy); Performance aprovado (lookup por PK + `store_id`, sem listas novas, sem polling/cache/realtime); TestEngineer aprovado com matriz de auth/role/status, validacao, isolamento, 404 e sanitizacao.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 133 testes), `npm run lint`, `npm run build`, `git diff --check` e `node --check scripts/smoke-auth-rls.mjs` passaram. Frontend `npm run typecheck`, `npm test` (9 arquivos, 62 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Smoke local minimo confirmou `GET /api/health` -> `200`, preflight CORS de `/api/auth/me` aceitando `http://127.0.0.1:3001`, `/login` -> `200` e renderizacao por navegador headless. Smoke autenticado local (`SMOKE_API_BASE_URL=http://127.0.0.1:4000 node scripts/smoke-auth-rls.mjs`) validou loja criando entrega ficticia, motoboy aceitando e avancando para `em_transito`, loja dona abrindo detalhe com timeline real e resposta sanitizada, outra loja recebendo `DELIVERY_NOT_FOUND`, query proibida com `VALIDATION_ERROR`, UUID invalido com `VALIDATION_ERROR` e cleanup completo. Nenhum secret, token, cookie ou header sensivel foi impresso.
+
+**Fora do escopo preservado:** realtime, push/Web Push/VAPID, polling automatico, cancelamento, cron/expiracao automatica, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio, dados pessoais do motoboy, SQL/migration/RLS/grants/policies.

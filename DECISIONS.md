@@ -108,7 +108,7 @@
 
 **Decisao:** Criar `PATCH /api/deliveries/:id/status` com body strict `{ status: 'coletada' | 'em_transito' | 'entregue' }`, protegido por `authenticate -> requireActiveUser -> requireRoles('motoboy')` e `couriers.is_online=true`. O backend deriva `couriers.id` pela sessao, exige entrega atribuida ao proprio courier, valida a maquina `aceita -> coletada -> em_transito -> entregue` e usa update condicional por `id`, `courier_id` e status anterior esperado, setando apenas o timestamp da etapa. Retry do mesmo status e idempotente por releitura curta. `GET /api/deliveries/active` passa a considerar `aceita|coletada|em_transito` e continua excluindo `entregue`.
 
-**Consequencias:** O motoboy consegue avancar a corrida pelo contrato REST minimo, com resposta sanitizada e sem `store_id`/`courier_id`. Como o backend usa service role, filtros server-side seguem obrigatorios. O fluxo ainda nao possui realtime, push, cron, cancelamento, historico, GPS, pagamentos ou Storage; esses temas continuam exigindo ciclos e validadores proprios.
+**Consequencias:** O motoboy consegue avancar a corrida pelo contrato REST minimo, com resposta sanitizada e sem `store_id`/`courier_id`. Como o backend usa service role, filtros server-side seguem obrigatorios. O fluxo ainda nao possui realtime, push, cron, cancelamento, historico, GPS, confirmacao de pagamento externo ou Storage; esses temas continuam exigindo ciclos e validadores proprios.
 
 ## ADR-011 - Diretorios locais de agentes fora do versionamento
 
@@ -120,3 +120,14 @@
 **Decisao:** Manter `.codex/` fora do versionamento e fora de commits. Qualquer pasta local equivalente, incluindo `.code/` se existir por engano ou legado, tambem fica fora. Conteudo desses diretorios so pode entrar no repositorio se houver decisao explicita, revisao de escopo e promocao para um caminho versionado apropriado fora dessas pastas. O `.gitignore` deve ignorar `.codex/` e `.code/`.
 
 **Consequencias:** O executor de release/commit deve tratar `.codex/...` e `.code/...` como artefatos locais excluidos, mesmo quando aparecerem no status antes do `.gitignore`. Prompts e materiais de agentes continuam disponiveis localmente sem poluir commits. Se algum arquivo desses diretorios virar documentacao oficial, ele deve ser movido conscientemente para `LOG.md`, `STATUS.md`, `CONTRACTS.md`, `DECISIONS.md` ou outro caminho versionado adequado.
+
+## ADR-012 - Pagamento como confirmacao externa administrativa
+
+**Data:** 2026-05-17
+**Status:** aceito
+
+**Contexto:** A documentacao inicial ja excluia pagamento integrado, mas o roadmap ainda usava "pagamentos" de forma ampla o suficiente para sugerir um modulo financeiro maior. O produto precisa apenas registrar se logistas e motoboys pagaram fora da plataforma.
+
+**Decisao:** O EntregGO nao tera gateway, checkout, PIX, cartao, boleto, carteira, split, repasse, conciliacao ou comprovante dentro da plataforma. O backend deve tratar `public.payments` como controle interno administrativo por usuario/mes: pago ou pendente, com `paid_at` e `marked_by` quando o admin confirmar o pagamento externo.
+
+**Consequencias:** O proximo contrato deve ser pequeno: listagem paginada para admin e acao idempotente de marcar como pago. Loja e motoboy nao visualizam esse controle. Ainda ha autorizacao, auditoria e paginacao a proteger, mas o escopo deixa de exigir integracao financeira ou fluxo de checkout.

@@ -91,7 +91,7 @@ Listagens sao paginadas com limite maximo de `100`. Acoes admin alteram somente 
 
 ### `GET /api/admin/insights`
 
-Retorna um dashboard administrativo minimo, sem parametros no v1. O endpoint consulta apenas `public.users`, nao acessa perfis, entregas, pagamentos, Storage, Realtime, cache, cron ou dados mockados.
+Retorna um dashboard administrativo minimo, sem parametros no v1. O endpoint consulta apenas `public.users`, nao acessa perfis, entregas, controle de pagamento externo, Storage, Realtime, cache, cron ou dados mockados.
 
 `active_accounts.stores` e `active_accounts.couriers` sao derivados de usuarios ativos por role (`logista/ativo` e `motoboy/ativo`). `latest_pending_users.items` e limitado a 5 apos merge de consultas limitadas por role.
 
@@ -240,7 +240,7 @@ Resposta:
 }
 ```
 
-Fora desta fatia: localizacao/GPS, disponibilidade por raio, realtime, push, cron, historico de presenca, transicoes de entrega, cancelamento, pagamentos, Storage e documentos.
+Fora desta fatia: localizacao/GPS, disponibilidade por raio, realtime, push, cron, historico de presenca, transicoes de entrega, cancelamento, confirmacao de pagamento externo, Storage e documentos.
 
 ## Entregas M-04A
 
@@ -290,7 +290,7 @@ Resposta:
 }
 ```
 
-Fora deste contrato: pool de motoboys, aceite concorrente, `accept`, mudanca de status, realtime, push, cron de expiracao, dashboards, pagamentos e frontend.
+Fora deste contrato: pool de motoboys, aceite concorrente, `accept`, mudanca de status, realtime, push, cron de expiracao, dashboards, confirmacao de pagamento externo e frontend.
 
 ## Entregas M-05
 
@@ -340,7 +340,51 @@ Resposta:
 }
 ```
 
-Fora deste contrato de loja: mudanca de status, detalhe unico, historico admin, busca textual, filtros por data, agregados reais, dados de motoboy, realtime, push, cron, dashboards, pagamentos e frontend.
+Fora deste contrato de lista da loja: mudanca de status, historico admin, busca textual, filtros por data, agregados reais, dados de motoboy, realtime, push, cron, dashboards e confirmacao de pagamento externo.
+
+## Entregas M-06 - Detalhe da loja
+
+### `GET /api/deliveries/:id`
+
+Retorna uma solicitacao de entrega especifica da loja vinculada ao usuario autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=logista` e `status=ativo`.
+
+Params:
+
+- `id`: UUID da entrega.
+
+Query params: nenhum. Qualquer parametro, incluindo `store_id`, `courier_id` ou `user_id`, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- `store_id` e sempre derivado do perfil `stores` do usuario autenticado; nunca vem do request.
+- Como o backend usa service role (RLS nao se aplica server-side), o isolamento multi-tenant e garantido pelo filtro server-side `id=<id>` e `store_id=<loja da sessao>`.
+- Entrega inexistente ou pertencente a outra loja retorna `DELIVERY_NOT_FOUND`.
+- A resposta nunca inclui `store_id`, `courier_id`, dados pessoais do motoboy, documentos, Storage, tokens ou headers.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `STORE_PROFILE_REQUIRED`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `DELIVERY_GET_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "destination_address": "Endereco de destino",
+    "notes": "Observacao opcional",
+    "status": "em_transito",
+    "created_at": "2026-05-17T12:00:00.000Z",
+    "expires_at": "2026-05-17T12:01:00.000Z",
+    "accepted_at": "2026-05-17T12:00:20.000Z",
+    "collected_at": "2026-05-17T12:02:00.000Z",
+    "in_transit_at": "2026-05-17T12:04:00.000Z",
+    "delivered_at": null,
+    "updated_at": "2026-05-17T12:04:00.000Z"
+  },
+  "message": "Entrega encontrada"
+}
+```
+
+Fora desta fatia: realtime, push, polling automatico, cancelamento, expiracao automatica por cron, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio e dados pessoais do motoboy.
 
 ## Entregas Fatia 1 - Motoboy
 
@@ -421,7 +465,7 @@ Resposta:
 }
 ```
 
-Fora desta fatia: Realtime, push/Web Push/VAPID, cron de expiracao automatica, cancelamento, transicoes pos-aceite (`coletada`, `em_transito`, `entregue`), pagamentos, Storage, historico admin, busca textual, SQL/migration/RLS/grants/policies novos e detalhe pos-aceite.
+Fora desta fatia: Realtime, push/Web Push/VAPID, cron de expiracao automatica, cancelamento, transicoes pos-aceite (`coletada`, `em_transito`, `entregue`), confirmacao de pagamento externo, Storage, historico admin, busca textual, SQL/migration/RLS/grants/policies novos e detalhe pos-aceite.
 
 ## Entregas Fatia 2 - Motoboy
 
@@ -529,7 +573,7 @@ Resposta:
 }
 ```
 
-Fora desta fatia: cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
+Fora desta fatia: cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, confirmacao de pagamento externo, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
 
 ## Entregas Fatia 4B - Historico do motoboy
 
@@ -587,11 +631,15 @@ Resposta:
 }
 ```
 
-Fora desta fatia: busca textual, filtro por data, detalhe unico, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico admin, pagamentos, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
+Fora desta fatia: busca textual, filtro por data, detalhe unico, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico admin, confirmacao de pagamento externo, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
+
+## Fluxo principal loja -> motoboy -> loja
+
+A M-06 fecha a fatia minima de acompanhamento da loja com `GET /api/deliveries/:id`, permitindo que a loja veja a propria entrega criada por ela apos aceite e transicoes do motoboy, sem realtime, push, polling automatico, cancelamento ou dados pessoais do motoboy.
 
 ## Admin ainda ausente no backend
 
-O frontend admin F7 Track A ja possui estrutura visual para detalhes, documentos, entregas, pagamentos e notas, mas estes contratos ainda nao existem no backend:
+O frontend admin F7 Track A ja possui estrutura visual para detalhes, documentos, entregas, confirmacao de pagamento externo e notas, mas estes contratos ainda nao existem no backend:
 
 - `GET /api/admin/users/:id/deliveries?page=1`
 - `GET /api/admin/payments`
@@ -599,7 +647,27 @@ O frontend admin F7 Track A ja possui estrutura visual para detalhes, documentos
 - signed URLs para documentos em Storage
 - tabela/endpoint de `admin_notes`
 
-Qualquer contrato com documentos, CNH, fotos, pagamentos, auditoria ou PII exige Security Validator. Qualquer contrato com agregacoes, historico grande, indices ou listas volumosas exige Performance Validator.
+### Escopo futuro de pagamento externo
+
+Nao havera pagamento integrado no EntregGO. A plataforma nao deve processar gateway, checkout, PIX, cartao, boleto, split, carteira, saldo, repasse ou conciliacao financeira. O escopo permitido e apenas um controle administrativo simples para o admin confirmar se um logista ou motoboy pagou fora da plataforma.
+
+A tabela `public.payments` criada na M-01 deve ser tratada como controle interno por usuario e mes (`user_id`, `reference_month`, `due_date`, `paid`, `paid_at`, `marked_by`). O frontend de loja/motoboy nao acessa nem visualiza esse controle. Escritas client-side continuam proibidas; somente backend com service role pode listar ou marcar.
+
+Contrato futuro minimo:
+
+- `GET /api/admin/payments?page=1&limit=20&role=logista&status=pendente&referenceMonth=YYYY-MM&paid=false`
+  - lista registros de controle de pagamento externo, paginados;
+  - pode trazer resumo sanitizado do usuario (`id`, `email`, `role`, `status`, `store_name` quando existir);
+  - nao retorna dado financeiro sensivel porque nao existe transacao financeira na plataforma.
+- `PATCH /api/admin/payments/:id/mark-paid`
+  - marca o controle como pago;
+  - idempotente quando ja estiver pago;
+  - seta `paid=true`, `paid_at=now` e `marked_by=<admin.id>`;
+  - nao aceita valor, metodo de pagamento, comprovante, gateway id ou dados bancarios.
+
+Fora de escopo: cobranca automatica, upload de comprovante, integracao financeira, notificacao de cobranca, historico contabil, estorno, split, repasse e exibicao para logista/motoboy.
+
+Qualquer contrato com documentos, CNH, fotos, auditoria administrativa ou PII exige Security Validator. O controle de pagamento externo nao e gateway financeiro, mas ainda exige auditoria de quem marcou e protecao contra acesso indevido. Qualquer contrato com agregacoes, historico grande, indices ou listas volumosas exige Performance Validator.
 
 ## Variaveis privadas permitidas somente no backend
 

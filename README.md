@@ -16,7 +16,7 @@ Fase de fundacao/auth-operacao. Este repositorio possui Express/TypeScript, Supa
 
 ## Fora do estado atual
 
-- Implementar uploads, push, realtime, aceite concorrente, cron, dashboards complexos, pagamentos administrativos ou historico de entregas.
+- Implementar uploads, push, realtime, aceite concorrente, cron, dashboards complexos, confirmacao administrativa de pagamento externo ou historico admin de entregas.
 - Inserir secrets reais.
 
 ## Comandos
@@ -29,4 +29,4 @@ Fase de fundacao/auth-operacao. Este repositorio possui Express/TypeScript, Supa
 
 ## Proximo passo
 
-O proximo passo deve ser escolhido como novo marco controlado. Pagamentos, documentos, aceite concorrente, pool de motoboys, realtime, push, cron e historico de entregas seguem bloqueados ate contratos proprios e validadores especializados.
+O proximo passo deve fechar o fluxo principal antes de modulos secundarios: a loja precisa acompanhar uma entrega real em detalhe apos criacao, aceite e transicoes do motoboy. A fatia sugerida e criar um contrato de detalhe/acompanhamento da entrega para a loja, sem realtime, push, cron, cancelamento ou historico admin. O controle de pagamento fica documentado como simples e administrativo para etapa futura: apenas confirmar se logista/motoboy pagou fora da plataforma, sem gateway, checkout, PIX, cartao ou repasse.

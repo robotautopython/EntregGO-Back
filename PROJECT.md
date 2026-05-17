@@ -4,7 +4,7 @@
 
 **Objetivo:** Plataforma web de intermediacao de entregas sob demanda entre lojas e motoboys.
 **Publico-alvo:** Administradores da operacao, lojas/logistas e motoboys.
-**Resultado esperado:** Lojas solicitam entregas, motoboys ativos e online recebem notificacoes, o primeiro aceite assume a corrida, e o admin governa cadastros, bloqueios, pagamentos internos e insights.
+**Resultado esperado:** Lojas solicitam entregas, motoboys ativos e online recebem notificacoes, o primeiro aceite assume a corrida, e o admin governa cadastros, bloqueios, confirmacao simples de pagamento externo e insights.
 
 ## Arquitetura
 
@@ -30,7 +30,7 @@
 - [ ] Solicitacao de entrega pela loja
 - [ ] Notificacao e aceite por motoboy
 - [ ] Atualizacao de status da corrida
-- [ ] Pagamento interno administrativo
+- [ ] Confirmacao administrativa de pagamento externo
 - [ ] Deploy e rollback front/back separados
 
 ## Regras de Producao
@@ -41,4 +41,4 @@
 - Paginacao: todas as listas administrativas, historicos e insights devem paginar ou limitar payload.
 - Observabilidade: logs estruturados sem PII/secrets; erros com codigo padronizado.
 - Backups/migrations: migrations versionadas, aditivas quando possivel e com rollback definido.
-
+- Pagamento externo: a plataforma nao processa cobranca, PIX, checkout, gateway, cartao ou repasse. O admin apenas registra se o logista/motoboy pagou fora da plataforma, com data e responsavel pela marcacao.

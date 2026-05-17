@@ -3,19 +3,19 @@
 ## Estado Atual
 
 **Fase:** fundacao/auth-operacao
-**Ultima atualizacao:** 2026-05-16
+**Ultima atualizacao:** 2026-05-17
 **Atualizado por:** Codex/Camisa10
 
 ## Em Andamento
 
-- [ ] Manter dashboards, pagamentos, documentos, historico admin, historico do motoboy, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
+- [ ] Validar M-06 em deploy/smoke autenticado quando houver ciclo operacional de publicacao.
+- [ ] Manter dashboards, controle simples de pagamento externo, documentos, historico admin, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
 - [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento e historico do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
-- [ ] Especificar proximo marco de entregas sem antecipar realtime, push, cron, cancelamento ou historico admin.
-- [ ] Especificar `/api/admin/payments` e `mark-paid` somente com auditoria e Security Validator.
+- [ ] Especificar controle administrativo de pagamento externo: `GET /api/admin/payments` e `PATCH /api/admin/payments/:id/mark-paid`, sem gateway/checkout/PIX/cartao, com auditoria simples de quem marcou.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 - [ ] Planejar detalhe e historico do motoboy sem quebrar o contrato PII da Fatia 1.
 
@@ -66,20 +66,22 @@
 - [x] Fatia 3 motoboy validada pos-deploy em producao: backend `001a1c6` e frontend `3201d77` publicados. Smoke publico confirmou `GET` e `PATCH /api/couriers/me/status` sem token com `401 AUTH_REQUIRED`, `/motoboy` com `200` e bundle contendo `/api/couriers/me/status`. Smoke autenticado com dados ficticios temporarios confirmou motoboy ativo iniciando `is_online=false`, resposta de status somente `{ is_online, updated_at }`, `/api/deliveries/active` negado offline com `COURIER_OFFLINE`, `PATCH true/false`, active online com fixture aceita, payloads proibidos com `VALIDATION_ERROR`, role errada/pendente/bloqueado negados, UI sem chamada a `/active` ou `/available` antes de ficar online e cleanup completo.
 - [x] Fatia 4A motoboy implementada localmente: `PATCH /api/deliveries/:id/status` permite transicoes `aceita -> coletada -> em_transito -> entregue` para o courier atribuido, com `courier_id` derivado da sessao, body strict, update condicional por status anterior, idempotencia para retry do mesmo status, logs sem PII e resposta sanitizada sem `store_id`/`courier_id`. `GET /api/deliveries/active` passou a considerar `aceita|coletada|em_transito` e excluir `entregue`. Sem SQL/migration/RLS/grants/policies, sem realtime/push/cron/cancelamento. Gates ImpactValidator, SecurityValidator, PerformanceValidator e TestEngineer aprovados antes da implementacao; backend `typecheck`, `test` (107), `lint`, `build` e `git diff --check` passaram.
 - [x] Fatia 4A motoboy validada pos-deploy em producao: backend `a84df437cb30b62c592454fe22b25b173fce9f83` e frontend `b9239dcce3ac25535990d148f8f2480df1bcb232` publicados. Smoke publico confirmou `GET /api/health` -> `200`, `GET /api/deliveries/active` sem token -> `401 AUTH_REQUIRED`, `PATCH /api/deliveries/:id/status` sem token -> `401 AUTH_REQUIRED` e `/motoboy` -> `200`. Smoke API autenticado validou transicoes, idempotencia, isolamento de outro courier, payload strict, sanitizacao e remocao de `entregue` do `/active`; smoke UI autenticado com Playwright validou login real, botoes `Confirmar coleta`/`Iniciar transito`/`Concluir entrega`, timestamps no banco, remocao da corrida ativa e cleanup completo.
+- [x] Planejamento de pagamentos ajustado em 2026-05-17: nao havera pagamento integrado na plataforma; o escopo correto e apenas confirmacao administrativa simples de pagamento externo para logistas/motoboys, usando a tabela `payments` como controle interno.
+- [x] M-06 Core Flow implementado e validado localmente no backend: `GET /api/deliveries/:id` para `logista` ativo, com `store_id` derivado da sessao, query vazia strict, filtro server-side por `id` + `store_id`, `DELIVERY_NOT_FOUND` para inexistente/outra loja e resposta sanitizada sem `store_id`, `courier_id`, PII de motoboy, documentos, Storage, tokens ou headers. Sem SQL/migration/RLS/grants/policies, sem realtime/push/polling/cancelamento/cron. Backend `typecheck`, `test` (133), `lint`, `build`, `git diff --check`, `node --check scripts/smoke-auth-rls.mjs` e smoke autenticado local M-06 passaram com cleanup completo.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real e as transicoes pos-aceite REST existem, mas ainda sem realtime/push.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real, as transicoes pos-aceite REST e o detalhe da propria entrega para loja existem, mas ainda sem realtime/push.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
-- Abas admin de documentos, entregas, pagamentos e notas seguem bloqueadas por falta de backend, schema/auditoria ou validadores especializados.
+- Abas admin de documentos, entregas, confirmacao de pagamento externo e notas seguem bloqueadas por falta de endpoints backend. Pagamento nao tera gateway nem cobranca integrada; precisa apenas de contrato simples, auditoria de marcacao e paginacao, mas nao e prioridade antes do fluxo principal.
 - A visao demo de corrida do motoboy (`CorridaAtiva.tsx`) permanece mock e isolada em `?demo=`; o caminho padrao `/motoboy` usa fila real, leitura real da corrida ativa e transicoes pos-aceite REST. Nao misturar mock/demo com dado real.
 
 ## Saude do Projeto
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (inclui Vitest/RTL da Fatia 4A)
+**Testes:** passando no backend e frontend (inclui M-06; backend 133 testes, frontend 62 testes)
 **Deploy:** frontend e backend publicados em Vercel
 **Riscos abertos:** 4
