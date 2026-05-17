@@ -577,3 +577,16 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes pos-push:** Smoke publico confirmou `GET https://entreggoback.vercel.app/api/health` -> `200`, `GET /api/deliveries/active` sem token -> `401`, `GET /api/deliveries/available` sem token -> `401`, `POST /api/deliveries/<uuid>/accept` sem token -> `401` e `https://entreggo.vercel.app/motoboy` -> `200`. O `gh` local retornou `401 Unauthorized`, entao checks GitHub/Vercel nao foram consultados via CLI. Smoke autenticado nao foi executado porque nao havia credencial segura disponivel no contexto.
 
 **Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, dados pessoais do motoboy e logs com dados sensiveis.
+
+## 2026-05-17 - M-06.1 FECHAMENTO OPERACIONAL POS-DEPLOY
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Fechamento operacional executado apos confirmacao de credenciais locais seguras em `.env.local` ignorado. Backend local e remoto em `origin/main` confirmados no SHA `5ea06bc6ab421af3b5efec93437ed18d5ae25a35`; frontend local/remoto confirmado no SHA `038eb2bfadb7dc7678bee2947080ae5f1a6428cb`. O smoke publico foi repetido e o smoke autenticado minimo API+UI foi executado em producao com loja, motoboy e entrega ficticios, com cleanup em `finally`.
+**Arquivos modificados:** `STATUS.md`, `LOG.md`
+**Status:** fechado em producao
+
+**Validacoes:** Smoke publico confirmou `/api/health` `200`, `/api/deliveries/active` sem token `401`, `/api/deliveries/available` sem token `401`, `POST /api/deliveries/<uuid>/accept` sem token `401` e `/motoboy` `200`. Smoke autenticado criou loja e motoboy ficticios, criou entrega pela API de loja, confirmou que a fila do motoboy expunha `store.name`/`store.address` sem `destination_address`/`notes`, aceitou a entrega, confirmou que `/api/deliveries/active` retornava `store.name`, `store.address`, `destination_address` e `notes` para o courier atribuido, e validou via Playwright a UI real `/motoboy` com `Loja solicitante`, `Coleta`, endereco da loja, destino e observacao pos-aceite. A UI/API nao expuseram `store_id`, `courier_id`, `owner_name`, `logo_url`, documentos, `Authorization` ou `Bearer`. Cleanup completo confirmado com `domain_residue=0` e `auth_residue=0`.
+
+**Observabilidade:** `gh` local continuou sem autenticacao (`401 Unauthorized`), portanto checks GitHub/Vercel nao foram consultados via CLI. Nenhum token, header, cookie, service role ou secret foi impresso.
+
+**Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo e dados pessoais do motoboy.
