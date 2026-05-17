@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import {
   approveUser,
   blockUser,
+  getAdminDeliveryById,
   getAdminInsights,
   getUserDetail,
   listAdminDeliveries,
@@ -14,6 +15,7 @@ import {
 import { sendSuccess } from '../utils/api-response.js';
 import { ApiError } from '../utils/errors.js';
 import type {
+  AdminDeliveryIdParams,
   AdminListDeliveriesQuery,
   AdminListPaymentsQuery,
   AdminListUsersQuery,
@@ -37,6 +39,13 @@ export const listAdminDeliveriesController = async (request: Request, response: 
   const result = await listAdminDeliveries(request.query as unknown as AdminListDeliveriesQuery);
 
   sendSuccess(response, result, 'Entregas administrativas encontradas');
+};
+
+export const getAdminDeliveryByIdController = async (request: Request, response: Response) => {
+  const params = request.params as AdminDeliveryIdParams;
+  const result = await getAdminDeliveryById(params.id);
+
+  sendSuccess(response, result, 'Entrega administrativa encontrada');
 };
 
 export const listAdminPaymentsController = async (request: Request, response: Response) => {

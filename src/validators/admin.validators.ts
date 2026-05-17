@@ -43,10 +43,15 @@ export const userIdParamsSchema = z.object({
   id: z.uuid(),
 });
 
+export const adminDeliveryIdParamsSchema = z.object({
+  id: z.uuid(),
+});
+
 export const paymentIdParamsSchema = z.object({
   id: z.uuid(),
 });
 
+export type AdminDeliveryIdParams = z.infer<typeof adminDeliveryIdParamsSchema>;
 export type AdminListDeliveriesQuery = z.infer<typeof adminListDeliveriesQuerySchema>;
 export type AdminListPaymentsQuery = z.infer<typeof adminListPaymentsQuerySchema>;
 export type AdminListUsersQuery = z.infer<typeof adminListUsersQuerySchema>;

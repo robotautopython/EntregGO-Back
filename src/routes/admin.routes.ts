@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
   approveUserController,
   blockUserController,
+  getAdminDeliveryByIdController,
   getAdminInsightsController,
   getUserDetailController,
   listAdminDeliveriesController,
@@ -15,6 +16,7 @@ import { authenticate, requireActiveUser, requireRoles } from '../middlewares/au
 import { validateRequest } from '../middlewares/validate-request.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {
+  adminDeliveryIdParamsSchema,
   adminInsightsQuerySchema,
   adminListDeliveriesQuerySchema,
   adminListPaymentsQuerySchema,
@@ -39,6 +41,12 @@ adminRouter.get(
   '/deliveries',
   validateRequest({ query: adminListDeliveriesQuerySchema }),
   asyncHandler(listAdminDeliveriesController),
+);
+
+adminRouter.get(
+  '/deliveries/:id',
+  validateRequest({ params: adminDeliveryIdParamsSchema, query: emptyAdminActionQuerySchema }),
+  asyncHandler(getAdminDeliveryByIdController),
 );
 
 adminRouter.get(

@@ -653,9 +653,47 @@ const createAdminDeliveriesListTable = ({
   return builder;
 };
 
+const createAdminDeliveryDetailTable = ({
+  row,
+  error = null,
+}: {
+  row: Record<string, unknown> | null;
+  error?: unknown;
+}) => {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    maybeSingle: vi.fn().mockResolvedValue({ data: row, error }),
+    order: vi.fn(() => builder),
+    range: vi.fn(),
+  };
+
+  return builder;
+};
+
 const mockAdminDeliveryListTables = (
   authUser: DomainUser,
   deliveryRequestsTable: ReturnType<typeof createAdminDeliveriesListTable>,
+) => {
+  const usersTable = createSelectTableByColumn({
+    auth_id: {
+      data: authUser,
+      error: null,
+    },
+  });
+
+  supabaseMock.from.mockImplementation((table: string) => {
+    if (table === 'users') return usersTable;
+    if (table === 'delivery_requests') return deliveryRequestsTable;
+    return createSelectTableByColumn({});
+  });
+
+  return usersTable;
+};
+
+const mockAdminDeliveryDetailTables = (
+  authUser: DomainUser,
+  deliveryRequestsTable: ReturnType<typeof createAdminDeliveryDetailTable>,
 ) => {
   const usersTable = createSelectTableByColumn({
     auth_id: {
@@ -856,6 +894,187 @@ describe('admin deliveries list route', () => {
     expect(response.body).toMatchObject({
       success: false,
       error: { code: 'ADMIN_DELIVERIES_LIST_FAILED' },
+    });
+  });
+});
+
+describe('admin delivery detail route', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  const detailPath = `/api/admin/deliveries/${adminDeliveryRow.id}`;
+
+  it('rejects the detail without a bearer token', async () => {
+    const response = await request(app).get(detailPath).expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it('rejects the detail for authenticated non-admin users', async () => {
+    mockAuthUser('auth-store');
+    supabaseMock.from.mockReturnValue(
+      createSelectTableByColumn({
+        auth_id: {
+          data: activeStoreUser,
+          error: null,
+        },
+      }),
+    );
+
+    const response = await request(app)
+      .get(detailPath)
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it.each([
+    [pendingAdmin, 'auth-pending-admin', 'USER_PENDING'],
+    [blockedAdmin, 'auth-blocked-admin', 'USER_BLOCKED'],
+  ])('rejects the detail for admin users with status %s', async (domainUser, authId, code) => {
+    mockAuthUser(authId);
+    supabaseMock.from.mockReturnValue(
+      createSelectTableByColumn({
+        auth_id: {
+          data: domainUser,
+          error: null,
+        },
+      }),
+    );
+
+    const response = await request(app)
+      .get(detailPath)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code },
+    });
+  });
+
+  it('returns one delivery with a strict whitelist and no courier data', async () => {
+    mockAuthUser();
+    const deliveryRequestsTable = createAdminDeliveryDetailTable({
+      row: adminDeliveryRow,
+    });
+    mockAdminDeliveryDetailTables(activeAdmin, deliveryRequestsTable);
+
+    const response = await request(app)
+      .get(detailPath)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(deliveryRequestsTable.select).toHaveBeenCalledWith(
+      'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)',
+    );
+    expect(deliveryRequestsTable.eq).toHaveBeenCalledWith('id', adminDeliveryRow.id);
+    expect(deliveryRequestsTable.maybeSingle).toHaveBeenCalledTimes(1);
+    expect(deliveryRequestsTable.order).not.toHaveBeenCalled();
+    expect(deliveryRequestsTable.range).not.toHaveBeenCalled();
+
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        id: adminDeliveryRow.id,
+        destination_address: adminDeliveryRow.destination_address,
+        notes: adminDeliveryRow.notes,
+        status: adminDeliveryRow.status,
+        created_at: adminDeliveryRow.created_at,
+        expires_at: adminDeliveryRow.expires_at,
+        accepted_at: adminDeliveryRow.accepted_at,
+        collected_at: adminDeliveryRow.collected_at,
+        in_transit_at: adminDeliveryRow.in_transit_at,
+        delivered_at: adminDeliveryRow.delivered_at,
+        updated_at: adminDeliveryRow.updated_at,
+        store: {
+          name: storeProfile.name,
+          address: storeProfile.address,
+        },
+      },
+      message: 'Entrega administrativa encontrada',
+    });
+
+    const serializedData = JSON.stringify(response.body.data);
+    expect(serializedData).not.toContain('store_id');
+    expect(serializedData).not.toContain('courier_id');
+    expect(serializedData).not.toContain('user_id');
+    expect(serializedData).not.toContain('auth_id');
+    expect(serializedData).not.toContain('email');
+    expect(serializedData).not.toContain('owner_name');
+    expect(serializedData).not.toContain('logo_url');
+    expect(serializedData).not.toContain('description');
+    expect(serializedData).not.toContain('full_name');
+    expect(serializedData).not.toContain('bike_photo_url');
+    expect(serializedData).not.toContain('license_photo_url');
+  });
+
+  it.each([
+    '/api/admin/deliveries/not-a-uuid',
+    `${detailPath}?store_id=dddddddd-dddd-4ddd-8ddd-dddddddddddd`,
+    `${detailPath}?courier_id=eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee`,
+    `${detailPath}?status=entregue`,
+    `${detailPath}?unknown=1`,
+  ])('rejects invalid params or query before reading deliveries: %s', async (path) => {
+    mockAuthUser();
+    const deliveryRequestsTable = createAdminDeliveryDetailTable({
+      row: adminDeliveryRow,
+    });
+    mockAdminDeliveryDetailTables(activeAdmin, deliveryRequestsTable);
+
+    const response = await request(app)
+      .get(path)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(deliveryRequestsTable.select).not.toHaveBeenCalled();
+  });
+
+  it('returns DELIVERY_NOT_FOUND for a missing delivery', async () => {
+    mockAuthUser();
+    const deliveryRequestsTable = createAdminDeliveryDetailTable({ row: null });
+    mockAdminDeliveryDetailTables(activeAdmin, deliveryRequestsTable);
+
+    const response = await request(app)
+      .get(detailPath)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_NOT_FOUND' },
+    });
+  });
+
+  it('returns a standardized failure when the delivery detail query fails', async () => {
+    mockAuthUser();
+    const deliveryRequestsTable = createAdminDeliveryDetailTable({
+      row: null,
+      error: { message: 'db down' },
+    });
+    mockAdminDeliveryDetailTables(activeAdmin, deliveryRequestsTable);
+
+    const response = await request(app)
+      .get(detailPath)
+      .set('Authorization', 'Bearer admin-token')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'ADMIN_DELIVERY_GET_FAILED' },
     });
   });
 });

@@ -82,6 +82,7 @@ Todas as rotas admin exigem Bearer token de usuario autenticado, role `admin` e 
 - `GET /api/admin/users/:id`
 - `GET /api/admin/insights`
 - `GET /api/admin/deliveries`
+- `GET /api/admin/deliveries/:id`
 - `GET /api/admin/payments`
 - `PATCH /api/admin/payments/:id/mark-paid`
 - `PATCH /api/admin/users/:id/approve`
@@ -197,7 +198,54 @@ Resposta:
 }
 ```
 
-Fora deste contrato: cancelamento, pagamento externo, alteracao de status, detalhe admin, dados de motoboy, busca textual, filtro por data, polling, realtime, push, cron e drawer por usuario.
+Fora deste contrato de listagem: cancelamento, pagamento externo, alteracao de status, dados de motoboy, busca textual, filtro por data, polling, realtime, push, cron e drawer por usuario.
+
+### `GET /api/admin/deliveries/:id`
+
+Retorna o detalhe administrativo somente leitura de uma entrega da rede. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=admin` e `status=ativo`.
+
+Params:
+
+- `id`: UUID da entrega.
+
+Query params: nenhum. Qualquer parametro, incluindo `store_id`, `courier_id`, `user_id`, `auth_id`, `status`, `page`, busca textual ou filtro de data, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O endpoint usa service role apenas no backend e retorna a mesma whitelist sanitizada da listagem M-07.
+- A consulta filtra por `delivery_requests.id=<id>` e usa embed `stores(name,address)` na mesma query, sem N+1, sem `count`, sem `range` e sem `order`.
+- Entrega inexistente retorna `DELIVERY_NOT_FOUND`.
+- A resposta nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, `email`, `owner_name`, `logo_url`, `description`, `full_name`, documentos, Storage URLs, tokens, cookies, headers ou service role.
+- Dados de motoboy ficam totalmente fora do v1, inclusive nome, documento, status online e objeto `courier`.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `ADMIN_DELIVERY_GET_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "destination_address": "Endereco de destino",
+    "notes": "Observacao opcional",
+    "status": "em_transito",
+    "created_at": "2026-05-17T12:00:00.000Z",
+    "expires_at": "2026-05-17T12:01:00.000Z",
+    "accepted_at": "2026-05-17T12:00:20.000Z",
+    "collected_at": "2026-05-17T12:02:00.000Z",
+    "in_transit_at": "2026-05-17T12:04:00.000Z",
+    "delivered_at": null,
+    "updated_at": "2026-05-17T12:04:00.000Z",
+    "store": {
+      "name": "Nome da loja",
+      "address": "Endereco operacional da loja"
+    }
+  },
+  "message": "Entrega administrativa encontrada"
+}
+```
+
+Fora deste contrato: cancelamento, alteracao de status, dados pessoais do motoboy, `courier_id`, `store_id`, `user_id`, `auth_id`, email, `owner_name`, `full_name`, documentos, Storage URLs, busca textual, filtro por data, dashboard, realtime, push, polling automatico, cron, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago.
 
 ### `GET /api/admin/payments`
 

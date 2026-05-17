@@ -745,3 +745,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Ajuste documental:** `STATUS.md` deixou de tratar a UI real de pagamentos como futura. `CONTRACTS.md` manteve os contratos REST M-08 inalterados e corrigiu apenas a secao de administracao pendente para registrar que pagamentos ja possuem backend e UI admin publicados.
 
 **Fora do escopo preservado:** gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago. Nenhum codigo, teste, migration, env ou contrato REST foi alterado.
+
+## 2026-05-17 - M-09A DETALHE ADMINISTRATIVO DE ENTREGA BACKEND LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada localmente a M-09A no backend: `GET /api/admin/deliveries/:id` foi adicionado ao `adminRouter`, protegido pelos guards admin existentes, com params UUID e query vazia strict. O service consulta `delivery_requests` por `id`, usa o mesmo select sanitizado da M-07 com `stores(name,address)`, retorna `DELIVERY_NOT_FOUND` para ausencia e nao cria logs operacionais novos.
+**Arquivos modificados:** `src/routes/admin.routes.ts`, `src/controllers/admin.controller.ts`, `src/services/admin.service.ts`, `src/validators/admin.validators.ts`, `tests/admin-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `/admin/entregas/[id]` implementado no repositorio frontend consumindo este endpoint via REST/Bearer token.
+**Agentes/gates utilizados:** Camisa10, Cetico, ImpactValidator, SecurityValidator, PerformanceValidator, Documentador
+**Status:** implementado e validado localmente; commit, push, deploy e smoke pos-deploy pendentes
+
+**Ressalvas incorporadas:** A consulta de detalhe nao usa listagem como base, nao usa `count`, `range`, `order`, cache, polling ou migration nova; `delivery_requests.id` ja e PK. A resposta reutiliza a whitelist de M-07 e nao inclui `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, `full_name`, documentos, Storage URLs, tokens, cookies, headers, service role ou qualquer objeto/dado de motoboy.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 186 testes), `npm run lint` e `npm run build` passaram. Teste focado `npm test -- tests/admin-routes.spec.ts` passou com 53 testes. Nenhum secret, token, cookie, header Authorization ou service role foi impresso.
+
+**Fora do escopo preservado:** cancelamento, alteracao de status, dados pessoais do motoboy, busca textual, filtro por data, dashboard, realtime, push, polling automatico, cron, documentos/Storage, pagamento externo, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago.

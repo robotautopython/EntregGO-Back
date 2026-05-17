@@ -93,6 +93,8 @@ export interface PaginatedAdminDeliveries {
   };
 }
 
+export type AdminDeliveryDetail = AdminDeliveryListItem;
+
 interface AdminPaymentStoreSummary {
   name: string;
 }
@@ -309,6 +311,27 @@ export const listAdminDeliveries = async (
       total: count ?? 0,
     },
   };
+};
+
+export const getAdminDeliveryById = async (
+  deliveryId: string,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<AdminDeliveryDetail> => {
+  const { data, error } = await supabase
+    .from('delivery_requests')
+    .select(adminDeliveryListSelect)
+    .eq('id', deliveryId)
+    .maybeSingle<AdminDeliveryRow>();
+
+  if (error) {
+    throw new ApiError(500, 'ADMIN_DELIVERY_GET_FAILED', 'Busca de entrega falhou');
+  }
+
+  if (!data) {
+    throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
+  }
+
+  return toAdminDeliveryListItem(data);
 };
 
 export const listAdminPayments = async (
