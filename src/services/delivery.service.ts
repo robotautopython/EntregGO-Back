@@ -6,6 +6,7 @@ import { ApiError } from '../utils/errors.js';
 import type {
   CreateDeliveryInput,
   ListAvailableDeliveriesQuery,
+  ListCourierHistoryQuery,
   ListDeliveriesQuery,
   UpdateDeliveryStatusInput,
 } from '../validators/delivery.validators.js';
@@ -21,6 +22,8 @@ const courierAcceptedDeliverySelect =
   'id,status,courier_id,accepted_at,created_at,expires_at,stores(name,address)';
 const courierActiveDeliverySelect =
   'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)';
+const courierHistoryDeliverySelect =
+  'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)';
 const databaseNow = 'now';
 
 type CourierActiveStatus = Extract<
@@ -87,6 +90,13 @@ interface CourierActiveDeliveryRow extends CourierDeliveryRow {
   accepted_at: string | null;
 }
 
+interface CourierHistoryDeliveryRow extends CourierActiveDeliveryRow {
+  collected_at: string | null;
+  in_transit_at: string | null;
+  delivered_at: string | null;
+  updated_at: string;
+}
+
 export interface StoreDeliveryListItem {
   id: string;
   destination_address: string | null;
@@ -148,6 +158,30 @@ export interface CourierActiveDeliveryState {
   store: DeliveryStoreSummary;
 }
 
+export interface CourierDeliveryHistoryItem {
+  id: string;
+  destination_address: string | null;
+  notes: string | null;
+  status: DeliveryRequest['status'];
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  collected_at: string | null;
+  in_transit_at: string | null;
+  delivered_at: string | null;
+  updated_at: string;
+  store: DeliveryStoreSummary;
+}
+
+export interface CourierDeliveryHistory {
+  items: CourierDeliveryHistoryItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
 export interface CourierDeliveryStatusState {
   id: string;
   destination_address: string | null;
@@ -176,7 +210,7 @@ const resolveOwnedStore = async (
   return store;
 };
 
-const resolveOnlineCourier = async (
+const resolveCourier = async (
   domainUserId: string,
   supabase: SupabaseClient,
 ): Promise<CourierOwnership> => {
@@ -189,6 +223,15 @@ const resolveOnlineCourier = async (
   if (courierError || !courier) {
     throw new ApiError(403, 'COURIER_PROFILE_REQUIRED', 'Perfil de motoboy nao encontrado');
   }
+
+  return courier;
+};
+
+const resolveOnlineCourier = async (
+  domainUserId: string,
+  supabase: SupabaseClient,
+): Promise<CourierOwnership> => {
+  const courier = await resolveCourier(domainUserId, supabase);
 
   if (!courier.is_online) {
     throw new ApiError(403, 'COURIER_OFFLINE', 'Motoboy offline');
@@ -251,6 +294,23 @@ const toCourierActiveDeliveryState = (
 ): CourierActiveDeliveryState => ({
   ...toCourierDeliveryStatusState(row),
   status: row.status as CourierActiveStatus,
+});
+
+const toCourierDeliveryHistoryItem = (
+  row: CourierHistoryDeliveryRow,
+): CourierDeliveryHistoryItem => ({
+  id: row.id,
+  destination_address: row.destination_address,
+  notes: row.notes,
+  status: row.status,
+  created_at: row.created_at,
+  expires_at: row.expires_at,
+  accepted_at: row.accepted_at,
+  collected_at: row.collected_at,
+  in_transit_at: row.in_transit_at,
+  delivered_at: row.delivered_at,
+  updated_at: row.updated_at,
+  store: normalizeStoreSummary(row.stores),
 });
 
 export const createDelivery = async (
@@ -478,6 +538,41 @@ export const getActiveDeliveryForCourier = async (
   }
 
   return data ? toCourierActiveDeliveryState(data) : null;
+};
+
+export const listCourierDeliveryHistory = async (
+  input: ListCourierHistoryQuery,
+  domainUserId: string,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<CourierDeliveryHistory> => {
+  const courier = await resolveCourier(domainUserId, supabase);
+
+  const offset = (input.page - 1) * input.limit;
+  let query = supabase
+    .from('delivery_requests')
+    .select(courierHistoryDeliverySelect, { count: 'exact' })
+    .eq('courier_id', courier.id);
+
+  if (input.status) {
+    query = query.eq('status', input.status);
+  }
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .range(offset, offset + input.limit - 1);
+
+  if (error) {
+    throw new ApiError(500, 'DELIVERY_HISTORY_LIST_FAILED', 'Historico de entregas falhou');
+  }
+
+  return {
+    items: ((data ?? []) as CourierHistoryDeliveryRow[]).map(toCourierDeliveryHistoryItem),
+    pagination: {
+      page: input.page,
+      limit: input.limit,
+      total: count ?? 0,
+    },
+  };
 };
 
 export const updateDeliveryStatusForCourier = async (

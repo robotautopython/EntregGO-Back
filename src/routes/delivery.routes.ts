@@ -5,6 +5,7 @@ import {
   createDeliveryController,
   getActiveDeliveryController,
   listAvailableDeliveriesController,
+  listCourierHistoryController,
   listDeliveriesController,
   updateDeliveryStatusController,
 } from '../controllers/delivery.controller.js';
@@ -16,6 +17,7 @@ import {
   createDeliverySchema,
   deliveryIdParamsSchema,
   listAvailableDeliveriesQuerySchema,
+  listCourierHistoryQuerySchema,
   listDeliveriesQuerySchema,
   updateDeliveryStatusSchema,
 } from '../validators/delivery.validators.js';
@@ -56,6 +58,15 @@ deliveryRouter.get(
   requireRoles('motoboy'),
   validateRequest({ query: activeDeliveryQuerySchema }),
   asyncHandler(getActiveDeliveryController),
+);
+
+deliveryRouter.get(
+  '/history',
+  authenticate,
+  requireActiveUser,
+  requireRoles('motoboy'),
+  validateRequest({ query: listCourierHistoryQuerySchema }),
+  asyncHandler(listCourierHistoryController),
 );
 
 deliveryRouter.post(

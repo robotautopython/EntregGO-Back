@@ -531,6 +531,64 @@ Resposta:
 
 Fora desta fatia: cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico do motoboy, historico admin, pagamentos, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
 
+## Entregas Fatia 4B - Historico do motoboy
+
+### `GET /api/deliveries/history`
+
+Lista o historico paginado de entregas atribuidas ao motoboy autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo` e perfil em `couriers`. Nao exige `is_online=true`, porque historico nao representa disponibilidade operacional.
+
+Query strict:
+
+- `page`: inteiro >= 1, default `1`.
+- `limit`: inteiro entre 1 e 50, default `20`.
+- `status`: opcional, um dos valores de `delivery_status`.
+
+Regras:
+
+- O backend resolve `couriers.id` por `couriers.user_id = domainUser.id`; o client nunca envia identificador de courier, loja ou usuario.
+- A consulta filtra sempre `delivery_requests.courier_id=<courier.id>` derivado da sessao.
+- A ordenacao e fixa por `created_at desc`.
+- A resposta inclui `destination_address`, `notes`, `status`, timestamps operacionais e `store` sanitizado (`name`, `address`).
+- A resposta nunca inclui `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, documentos/Storage, email, tokens ou secrets.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `VALIDATION_ERROR`, `DELIVERY_HISTORY_LIST_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "destination_address": "Endereco de destino",
+        "notes": "Observacao opcional",
+        "status": "entregue",
+        "created_at": "2026-05-16T12:00:00.000Z",
+        "expires_at": "2026-05-16T12:01:00.000Z",
+        "accepted_at": "2026-05-16T12:00:20.000Z",
+        "collected_at": "2026-05-16T12:02:00.000Z",
+        "in_transit_at": "2026-05-16T12:04:00.000Z",
+        "delivered_at": "2026-05-16T12:12:00.000Z",
+        "updated_at": "2026-05-16T12:12:00.000Z",
+        "store": {
+          "name": "Nome da loja",
+          "address": "Endereco operacional da loja"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1
+    }
+  },
+  "message": "Historico de entregas encontrado"
+}
+```
+
+Fora desta fatia: busca textual, filtro por data, detalhe unico, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico admin, pagamentos, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
+
 ## Admin ainda ausente no backend
 
 O frontend admin F7 Track A ja possui estrutura visual para detalhes, documentos, entregas, pagamentos e notas, mas estes contratos ainda nao existem no backend:

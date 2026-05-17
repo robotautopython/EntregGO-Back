@@ -5,6 +5,7 @@ import {
   createDelivery,
   getActiveDeliveryForCourier,
   listAvailableDeliveriesForCourier,
+  listCourierDeliveryHistory,
   listStoreDeliveries,
   updateDeliveryStatusForCourier,
 } from '../services/delivery.service.js';
@@ -13,6 +14,7 @@ import type {
   CreateDeliveryInput,
   DeliveryIdParams,
   ListAvailableDeliveriesQuery,
+  ListCourierHistoryQuery,
   ListDeliveriesQuery,
   UpdateDeliveryStatusInput,
 } from '../validators/delivery.validators.js';
@@ -59,6 +61,15 @@ export const getActiveDeliveryController = async (request: Request, response: Re
     result,
     result ? 'Corrida ativa encontrada' : 'Nenhuma corrida ativa encontrada',
   );
+};
+
+export const listCourierHistoryController = async (request: Request, response: Response) => {
+  const result = await listCourierDeliveryHistory(
+    request.query as unknown as ListCourierHistoryQuery,
+    request.auth?.user.id ?? '',
+  );
+
+  sendSuccess(response, result, 'Historico de entregas encontrado');
 };
 
 export const updateDeliveryStatusController = async (request: Request, response: Response) => {

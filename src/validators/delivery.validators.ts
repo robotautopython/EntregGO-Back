@@ -42,6 +42,14 @@ export const listAvailableDeliveriesQuerySchema = z
   })
   .strict();
 
+export const listCourierHistoryQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    status: z.enum(deliveryStatusValues).optional(),
+  })
+  .strict();
+
 export const activeDeliveryQuerySchema = z.object({}).strict();
 
 export const deliveryIdParamsSchema = z.object({
@@ -55,6 +63,7 @@ export const updateDeliveryStatusSchema = z
   .strict();
 
 export type ListAvailableDeliveriesQuery = z.infer<typeof listAvailableDeliveriesQuerySchema>;
+export type ListCourierHistoryQuery = z.infer<typeof listCourierHistoryQuerySchema>;
 export type ActiveDeliveryQuery = z.infer<typeof activeDeliveryQuerySchema>;
 export type DeliveryIdParams = z.infer<typeof deliveryIdParamsSchema>;
 export type UpdateDeliveryStatusInput = z.infer<typeof updateDeliveryStatusSchema>;
