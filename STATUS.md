@@ -70,6 +70,7 @@
 - [x] M-06 validada pos-deploy em producao: backend `27987f0b54b6747c6dac5a9f5134f4f2c80d8b3e` e frontend `20ab39710367bfcb9565246daef292f275e3c370` publicados com Vercel `success`; smoke publico confirmou `GET /api/health` -> `200`, `GET /api/deliveries/:id` sem token -> `401 AUTH_REQUIRED` e `/loja/entregas/<uuid>` -> `200`; smoke autenticado validou loja criando entrega ficticia, motoboy aceitando e avancando para `em_transito`, loja dona abrindo detalhe com timeline real e resposta sanitizada, outra loja recebendo `DELIVERY_NOT_FOUND`, query proibida/UUID invalido com `VALIDATION_ERROR` e cleanup completo.
 - [x] Hardening pos-M-06 implementado localmente: `POST /api/deliveries` agora retorna o shape sanitizado da loja sem `store_id`/`courier_id`, `POST /api/deliveries/:id/accept` deixou de expor `courier_id` ao client, e logs JSON de aceite/status mantem `delivery_id`, evento, resultado e transicoes sem `courier_id`, PII, tokens, headers ou payload. Sem SQL/migration/RLS/grants/policies e sem alterar realtime/push/polling/cancelamento/cron.
 - [x] Hardening pos-M-06 validado pos-deploy em producao: backend funcional `ad5ded4` e frontend funcional `8771b9b` publicados com Vercel `success`; smoke publico confirmou `/api/health` `200`, rotas de entrega protegidas com `401` sem token e `/loja/entregas/<uuid>` `200`; smoke autenticado criou entrega sem `store_id`/`courier_id` na resposta, abriu a UI de detalhe, aceitou sem `courier_id`, avancou status, confirmou detalhe sanitizado e cleanup completo.
+- [x] M-06.1 auditada localmente: backend ja retornava o contrato correto para o motoboy (`store.name`/`store.address` pre-aceite e tambem pos-aceite, com `destination_address`/`notes` apenas em corrida ativa/status do courier atribuido); logs de aceite/status seguem sem PII, payload, header ou token. A unica correcao runtime ficou no frontend, normalizando observacoes em branco antes de renderizar. Sem SQL/migration/RLS/grants/policies e sem realtime/push/polling/cron/cancelamento.
 
 ## Bloqueios
 
@@ -84,6 +85,6 @@
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (inclui hardening pos-M-06; backend 133 testes, frontend 63 testes)
+**Testes:** passando no backend e frontend (inclui M-06.1; backend 133 testes, frontend 64 testes)
 **Deploy:** frontend e backend publicados em Vercel
 **Riscos abertos:** 4

@@ -515,6 +515,18 @@ Resposta sem corrida ativa:
 }
 ```
 
+### M-06.1 - Loja e endereco no fluxo real do motoboy
+
+Auditoria cross-stack sem rota nova, sem SQL/migration/RLS/grants/policies e sem mudanca de realtime/push/polling/cron/cancelamento.
+
+Regras confirmadas:
+
+- Pre-aceite (`GET /api/deliveries/available`): retorna somente `store.name` e `store.address` como dados operacionais da loja, alem de `id`, `status`, `created_at` e `expires_at` da entrega.
+- Pre-aceite: nao retorna `destination_address`, `notes`, `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, documentos, Storage, token, header ou payload sensivel.
+- Aceite (`POST /api/deliveries/:id/accept`): mantem resposta reduzida com `store.name` e `store.address`, sem `destination_address`/`notes`; o detalhe pos-aceite vem do contrato de corrida ativa.
+- Pos-aceite (`GET /api/deliveries/active` e `PATCH /api/deliveries/:id/status`): retorna `store.name`, `store.address`, `destination_address` e `notes` somente para o courier autenticado e atribuido, com `courier_id` derivado da sessao no servidor.
+- Logs operacionais de aceite/status continuam whitelisted: `event`, `delivery_id`, `result`, `from_status` e `to_status`, sem `courier_id`, endereco, observacao, payload, token, cookie ou header.
+
 ## Entregas Fatia 4A - Motoboy
 
 ### `PATCH /api/deliveries/:id/status`

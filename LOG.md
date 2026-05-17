@@ -552,3 +552,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes pos-deploy:** Smoke publico confirmou `GET https://entreggoback.vercel.app/api/health` -> `200`, `GET /api/deliveries/<uuid>` sem token -> `401`, `POST /api/deliveries` sem token -> `401`, `POST /api/deliveries/<uuid>/accept` sem token -> `401` e `https://entreggo.vercel.app/loja/entregas/<uuid>` -> `200`. Smoke autenticado de producao com dados ficticios temporarios confirmou: loja cria entrega e a resposta nao contem `store_id`/`courier_id`; a UI de detalhe abre para o `id`; motoboy aceita e a resposta nao contem `courier_id`, `destination_address` nem `notes`; transicao para `coletada` funciona; detalhe da loja permanece sem identificadores internos; cleanup completo. Os helpers de log foram verificados no codigo: `delivery_accept` loga apenas `event`, `delivery_id` e `result`; `delivery_status_update` loga apenas `event`, `delivery_id`, `from_status`, `to_status` e `result`.
 
 **Fora do escopo preservado:** M-06 funcional, realtime, push/Web Push/VAPID, polling automatico, cancelamento, cron/expiracao automatica, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio, dados pessoais do motoboy, SQL/migration/RLS/grants/policies e dados pessoais em logs.
+
+## 2026-05-17 - M-06.1 AUDITORIA LOJA/ENDERECO DO MOTOBOY
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Iniciada e fechada localmente a M-06.1 para validar a exibicao de loja e endereco no fluxo real do motoboy. No backend, a auditoria confirmou que `GET /api/deliveries/available` retorna somente `store.name`/`store.address` como dados da loja no pre-aceite, sem `destination_address`/`notes`; `POST /api/deliveries/:id/accept` continua reduzido e sem `destination_address`/`notes`; `GET /api/deliveries/active` e `PATCH /api/deliveries/:id/status` retornam `store.name`, `store.address`, `destination_address` e `notes` apenas para o courier autenticado e atribuido. Logs de aceite/status continuam sem `courier_id`, endereco, observacao, payload, token, cookie ou header.
+**Arquivos modificados (backend):** `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `src/components/motoboy/CorridaAtivaReal.tsx`, `src/components/motoboy/__tests__/MotoboyRealFlow.test.tsx`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, TestEngineer, Documentador
+**Status:** fechado localmente; commit/deploy pendentes
+
+**Gates:** ImpactValidator aprovado com a ressalva conferida de que, apos aceite, o caminho real usa `GET /api/deliveries/active` como fonte de verdade e nao o payload reduzido de `/accept`. SecurityValidator aprovado com condicoes de manter whitelists de resposta/logs e nao incluir destino/notas em `/available` ou `/accept`. TestEngineer apontou lacuna de cobertura frontend para `Coleta`/endereco da loja e observacao em branco; lacuna fechada no frontend.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 133 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (9 arquivos, 64 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. Nenhum secret, token, cookie, header Authorization ou service role foi impresso. `.env.local` segue ignorado por `.gitignore`.
+
+**Fora do escopo preservado:** backend funcional novo, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo e dados pessoais do motoboy.
