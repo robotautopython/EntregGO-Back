@@ -618,3 +618,22 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Observabilidade:** Nenhum token, cookie, header Authorization, service role ou secret foi impresso. O smoke autenticado imprimiu apenas status resumido e confirmou cleanup.
 
 **Fora do escopo preservado:** codigo funcional novo, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, detalhe unico do historico, busca textual, filtro por data e dados pessoais do motoboy.
+
+## 2026-05-17 - FATIA 4B FECHAMENTO VISUAL AUTENTICADO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Revalidado em producao o fechamento visual autenticado da Fatia 4B. O backend permaneceu sem alteracao funcional em `df1a388eaea9f95e0beded5c419ee9c43b793dc6`; o endpoint `GET /api/deliveries/history` continuou validado com `courier_id` derivado da sessao, sem exigir `is_online`, query strict e resposta sanitizada. O frontend publicou a correcao minima `6ab9ac8393076db640af5d1d7954874f2f61249e` para remover email visivel do shell autenticado antes do smoke.
+**Arquivos modificados:** `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `src/components/shell/ShellSidebar.tsx`, `src/components/shell/ShellTopbar.tsx`, `src/components/shell/MobileNavDrawer.tsx`
+**Agentes utilizados:** Camisa10, SecurityValidator e TestEngineer
+**Status:** fechado em producao
+
+**Gates:** TestEngineer aprovou a matriz minima de smoke UI/API. SecurityValidator bloqueou inicialmente a exposicao de email no shell autenticado e aprovou depois da correcao publicada, com a condicao de usar dados ficticios, nao imprimir credenciais e validar ausencia de campos proibidos em API/DOM.
+
+**Validacoes locais:** Frontend `npm run typecheck`, teste focado de historico/client API (14 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Backend nao recebeu alteracao de runtime nesta rodada; validadores confirmaram as evidencias de rota, query strict, filtro server-side e select sanitizado.
+
+**Smokes de producao:** Smoke publico confirmou `GET https://entreggoback.vercel.app/api/health` -> `200`, `GET /api/deliveries/history` sem token -> `401 AUTH_REQUIRED` e `https://entreggo.vercel.app/motoboy/historico` -> `200`. Smoke API autenticado criou dados ficticios temporarios e confirmou motoboy ativo offline consultando historico real paginado (`page=1/2`, `limit=20`, `total=21`), ordenacao `created_at desc`, filtro `status=entregue`, entrega de outro courier ausente, `courier_id`, `unknown` e `limit=51` rejeitados com `VALIDATION_ERROR`, logista rejeitado com `FORBIDDEN_ROLE`, payload sem `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, documentos, Storage, email, `auth_id`, token ou header. Smoke UI com Playwright validou login real, loja, destino, observacao, timestamps operacionais, pagina 2, filtro, vazio honesto, erro recuperavel com retry e DOM sem marcadores proibidos.
+
+**Cleanup:** `finally` removeu todos os recursos temporarios; verificacao final retornou `domain_residue=0`, `store_residue=0`, `courier_residue=0`, `delivery_residue=0`, `auth_residue=0`.
+
+**Fora do escopo preservado:** codigo funcional novo no backend, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, detalhe unico do historico, busca textual, filtro por data e dados pessoais do motoboy. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
