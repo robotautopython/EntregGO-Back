@@ -8,7 +8,6 @@
 
 ## Em Andamento
 
-- [ ] Fechar operacionalmente M-07 com commit, push, deploy e smoke pos-deploy antes de iniciar nova feature.
 - [ ] Manter dashboards complexos, controle simples de pagamento externo, documentos, detalhe admin, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
@@ -79,10 +78,11 @@
 - [x] Fatia 4C detalhe unico do historico do motoboy implementada localmente: `GET /api/deliveries/history/:id` retorna somente entrega do historico atribuida ao courier autenticado, com `courier_id` derivado por `couriers.user_id`, sem exigir `is_online`, query vazia strict, filtro server-side `id` + `courier_id`, `DELIVERY_NOT_FOUND` para inexistente/outro courier e resposta sanitizada reutilizando o shape da Fatia 4B. Sem SQL/migration/RLS/grants/policies, sem realtime/push/polling/cron/cancelamento, sem historico admin, sem pagamento externo e sem dados pessoais novos. Gates ImpactValidator, SecurityValidator e TestEngineer aprovaram; backend `typecheck`, `test` (148), `lint`, `build` e `git diff --check` passaram.
 - [x] Fatia 4C publicada e validada em producao: backend `704694c4d6c63d1c3962e3b1353434f41c2c64c7` e frontend `2f6f3bd638fd3f0810eaeed3b438ab9ab4b6f9ae` enviados para `origin/main`. Smoke publico confirmou `/api/health` `200`, `GET /api/deliveries/history/<uuid>` sem token com `401 AUTH_REQUIRED` e `/motoboy/historico/<uuid>` `200`. Smoke autenticado API+UI com dados ficticios confirmou detalhe proprio, isolamento por outro courier, query proibida, role errada, UI real e cleanup completo sem imprimir secrets.
 - [x] M-07 implementada e validada localmente no backend: `GET /api/admin/deliveries` lista entregas globais para admin ativo, somente leitura, com query strict (`page`, `limit<=50`, `status`), resposta sanitizada com `store.name/address`, sem IDs internos, dados de motoboy, documentos, Storage, tokens ou headers. Inclui migration aditiva `idx_delivery_requests_created_at_id_desc` para listagem global sem status. Backend `typecheck`, `test` (158), `lint`, `build` e `git diff --check` passaram.
+- [x] M-07 publicada e validada em producao: backend `a258888be13b69515ca4521c931452fac5796df2`, frontend `48994109cfd1c559ac4df6b3eddf03de66d46c9b`; indice remoto `idx_delivery_requests_created_at_id_desc` confirmado; Vercel `success`; smoke publico e autenticado API+UI passaram com dados ficticios e cleanup completo.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, detalhe admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real, as transicoes pos-aceite REST, o detalhe da propria entrega para loja, o historico real paginado do motoboy, o detalhe unico desse historico e a listagem admin global de entregas existem localmente, mas ainda sem realtime/push.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, detalhe admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real, as transicoes pos-aceite REST, o detalhe da propria entrega para loja, o historico real paginado do motoboy, o detalhe unico desse historico e a listagem admin global de entregas existem em producao, mas ainda sem realtime/push.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
@@ -93,6 +93,6 @@
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (inclui Fatia 4C; backend 148 testes, frontend 70 testes)
-**Deploy:** frontend e backend publicados em Vercel; Fatia 4C validada em producao
+**Testes:** passando no backend e frontend (M-07: backend 158 testes, frontend 75 testes)
+**Deploy:** frontend e backend publicados em Vercel; Fatia 4C e M-07 validadas em producao
 **Riscos abertos:** 4
