@@ -5,6 +5,7 @@ import {
   blockUserController,
   getAdminInsightsController,
   getUserDetailController,
+  listAdminDeliveriesController,
   listUsersController,
   unblockUserController,
 } from '../controllers/admin.controller.js';
@@ -13,6 +14,7 @@ import { validateRequest } from '../middlewares/validate-request.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {
   adminInsightsQuerySchema,
+  adminListDeliveriesQuerySchema,
   adminListUsersQuerySchema,
   userIdParamsSchema,
 } from '../validators/admin.validators.js';
@@ -25,6 +27,12 @@ adminRouter.get(
   '/insights',
   validateRequest({ query: adminInsightsQuerySchema }),
   asyncHandler(getAdminInsightsController),
+);
+
+adminRouter.get(
+  '/deliveries',
+  validateRequest({ query: adminListDeliveriesQuerySchema }),
+  asyncHandler(listAdminDeliveriesController),
 );
 
 adminRouter.get(

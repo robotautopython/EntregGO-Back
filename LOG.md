@@ -668,3 +668,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Smoke autenticado:** com dados ficticios temporarios, API confirmou detalhe do proprio historico do courier autenticado, offline permitido, resposta sanitizada sem campos internos, entrega de outro courier com `DELIVERY_NOT_FOUND`, query `courier_id` proibida com `VALIDATION_ERROR` e logista com `FORBIDDEN_ROLE`. UI confirmou login real, detalhe renderizado, nao encontrado honesto para entrega de outro courier e DOM sem marcadores proibidos.
 
 **Cleanup:** cleanup completo com `domain_residue=0`, `store_residue=0`, `courier_residue=0`, `delivery_residue=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+## 2026-05-17 - M-07 LISTAGEM ADMINISTRATIVA DE ENTREGAS
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada localmente a M-07 no backend: `GET /api/admin/deliveries` foi adicionado ao `adminRouter`, protegido pelo middleware admin existente (`authenticate`, `requireActiveUser`, `requireRoles('admin')`). O endpoint lista entregas globais da rede em modo somente leitura, com query strict (`page`, `limit<=50`, `status`), `count: exact`, paginacao offset/range e ordenacao `created_at desc, id desc`.
+**Arquivos modificados:** `src/routes/admin.routes.ts`, `src/controllers/admin.controller.ts`, `src/services/admin.service.ts`, `src/validators/admin.validators.ts`, `tests/admin-routes.spec.ts`, `supabase/migrations/20260517180000_m07_admin_deliveries_created_at_index.sql`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `/admin/entregas` passa a consumir o endpoint real via API REST no repositorio frontend.
+**Agentes/gates utilizados:** Camisa10; SecurityValidator e PerformanceValidator aprovaram previamente com ressalvas obrigatorias.
+**Status:** implementado e validado localmente; commit, push, deploy e smoke pos-deploy pendentes
+
+**Ressalvas incorporadas:** A resposta usa whitelist exata com `id`, destino, observacao, status, timestamps e `store: { name, address }`. Dados de motoboy permanecem bloqueados no v1; nao ha `courier_id`, `full_name`, email, documentos, Storage ou objeto `courier`. A migration aditiva criou `idx_delivery_requests_created_at_id_desc` para sustentar a listagem global sem filtro de `status`; com `status`, segue valido o indice existente por `(status, created_at desc)`.
+
+**Validacoes locais:** `npm run typecheck`, `npm test` (7 arquivos, 158 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. Nenhum secret, token, cookie, header Authorization ou service role foi impresso.
+
+**Fora do escopo preservado:** cancelamento, pagamento externo, alteracao de status, detalhe admin, busca textual, filtro por data, polling, realtime, push, cron, drawer por usuario, dados de motoboy e logs com PII/secrets.

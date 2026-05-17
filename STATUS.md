@@ -8,7 +8,8 @@
 
 ## Em Andamento
 
-- [ ] Manter dashboards, controle simples de pagamento externo, documentos, historico admin, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
+- [ ] Fechar operacionalmente M-07 com commit, push, deploy e smoke pos-deploy antes de iniciar nova feature.
+- [ ] Manter dashboards complexos, controle simples de pagamento externo, documentos, detalhe admin, realtime, push, cron e cancelamento como escopo futuro ate validacao de Security/Performance.
 
 ## Proximas Tarefas
 
@@ -77,14 +78,15 @@
 - [x] Fechamento visual autenticado da Fatia 4B revalidado em producao: backend permaneceu sem alteracao funcional em `df1a388eaea9f95e0beded5c419ee9c43b793dc6`; frontend publicou a correcao minima `6ab9ac8393076db640af5d1d7954874f2f61249e` para remover email visivel do shell autenticado antes do smoke. SecurityValidator e TestEngineer aprovaram; smoke publico/API/UI confirmou `/api/health` `200`, `GET /api/deliveries/history` sem token `401 AUTH_REQUIRED`, `/motoboy/historico` `200`, motoboy ativo offline vendo historico real paginado, isolamento por courier, query proibida com `VALIDATION_ERROR`, loja com `FORBIDDEN_ROLE`, resposta/UI sem `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, documentos, Storage, email, token ou header, e cleanup completo (`domain_residue=0`, `store_residue=0`, `courier_residue=0`, `delivery_residue=0`, `auth_residue=0`).
 - [x] Fatia 4C detalhe unico do historico do motoboy implementada localmente: `GET /api/deliveries/history/:id` retorna somente entrega do historico atribuida ao courier autenticado, com `courier_id` derivado por `couriers.user_id`, sem exigir `is_online`, query vazia strict, filtro server-side `id` + `courier_id`, `DELIVERY_NOT_FOUND` para inexistente/outro courier e resposta sanitizada reutilizando o shape da Fatia 4B. Sem SQL/migration/RLS/grants/policies, sem realtime/push/polling/cron/cancelamento, sem historico admin, sem pagamento externo e sem dados pessoais novos. Gates ImpactValidator, SecurityValidator e TestEngineer aprovaram; backend `typecheck`, `test` (148), `lint`, `build` e `git diff --check` passaram.
 - [x] Fatia 4C publicada e validada em producao: backend `704694c4d6c63d1c3962e3b1353434f41c2c64c7` e frontend `2f6f3bd638fd3f0810eaeed3b438ab9ab4b6f9ae` enviados para `origin/main`. Smoke publico confirmou `/api/health` `200`, `GET /api/deliveries/history/<uuid>` sem token com `401 AUTH_REQUIRED` e `/motoboy/historico/<uuid>` `200`. Smoke autenticado API+UI com dados ficticios confirmou detalhe proprio, isolamento por outro courier, query proibida, role errada, UI real e cleanup completo sem imprimir secrets.
+- [x] M-07 implementada e validada localmente no backend: `GET /api/admin/deliveries` lista entregas globais para admin ativo, somente leitura, com query strict (`page`, `limit<=50`, `status`), resposta sanitizada com `store.name/address`, sem IDs internos, dados de motoboy, documentos, Storage, tokens ou headers. Inclui migration aditiva `idx_delivery_requests_created_at_id_desc` para listagem global sem status. Backend `typecheck`, `test` (158), `lint`, `build` e `git diff --check` passaram.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, historico admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real, as transicoes pos-aceite REST, o detalhe da propria entrega para loja, o historico real paginado do motoboy e o detalhe unico desse historico existem, mas ainda sem realtime/push.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos, detalhe admin de entregas ou cancelamento. O aceite REST atomico, a UI real de descoberta/aceite, a leitura pos-aceite, o status online/offline real, as transicoes pos-aceite REST, o detalhe da propria entrega para loja, o historico real paginado do motoboy, o detalhe unico desse historico e a listagem admin global de entregas existem localmente, mas ainda sem realtime/push.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
-- Abas admin de documentos, entregas, confirmacao de pagamento externo e notas seguem bloqueadas por falta de endpoints backend. Pagamento nao tera gateway nem cobranca integrada; precisa apenas de contrato simples, auditoria de marcacao e paginacao, mas nao e prioridade antes do fluxo principal.
+- Abas admin de documentos, confirmacao de pagamento externo e notas seguem bloqueadas por falta de endpoints backend. Pagamento nao tera gateway nem cobranca integrada; precisa apenas de contrato simples, auditoria de marcacao e paginacao, mas nao e prioridade antes do fluxo principal.
 - A visao demo de corrida do motoboy (`CorridaAtiva.tsx`) permanece mock e isolada em `?demo=`; o caminho padrao `/motoboy` usa fila real, leitura real da corrida ativa e transicoes pos-aceite REST. Nao misturar mock/demo com dado real.
 
 ## Saude do Projeto

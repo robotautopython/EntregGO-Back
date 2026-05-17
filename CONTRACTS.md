@@ -81,6 +81,7 @@ Todas as rotas admin exigem Bearer token de usuario autenticado, role `admin` e 
 - `GET /api/admin/users?page=1&limit=20&role=logista&status=pendente&search=email`
 - `GET /api/admin/users/:id`
 - `GET /api/admin/insights`
+- `GET /api/admin/deliveries`
 - `PATCH /api/admin/users/:id/approve`
 - `PATCH /api/admin/users/:id/block`
 - `PATCH /api/admin/users/:id/unblock`
@@ -140,6 +141,61 @@ Resposta:
 ```
 
 Campos de PII como `email`, `auth_id`, nomes, endereco, perfis, documentos e URLs de Storage nao fazem parte deste contrato.
+
+### `GET /api/admin/deliveries`
+
+Lista administrativa global de entregas da rede, somente leitura. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=admin` e `status=ativo`.
+
+Query params (schema strict):
+
+- `page`: inteiro, minimo 1, default 1.
+- `limit`: inteiro, minimo 1, maximo 50, default 20.
+- `status`: opcional, um de `aguardando|aceita|coletada|em_transito|entregue|expirada|cancelada`.
+- Qualquer outro parametro, incluindo `store_id`, `courier_id`, `user_id`, busca textual ou filtro de data, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O endpoint usa service role apenas no backend e retorna uma whitelist fixa.
+- Ordem fixa: `created_at` descendente e `id` descendente como desempate estavel.
+- A migration M-07 adiciona indice global `(created_at desc, id desc)` para sustentar a listagem sem filtro de `status`; com `status`, o indice existente `(status, created_at desc)` segue util.
+- A consulta usa embed `stores(name,address)` na mesma query, sem N+1.
+- `destination_address`, `notes` e `store.address` sao dados operacionais permitidos somente para admin ativo nesta tela; nao devem ser logados.
+- A resposta nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, `email`, `owner_name`, `logo_url`, `description`, `full_name`, documentos, Storage URLs, tokens, cookies, headers ou service role.
+- Dados de motoboy ficam totalmente fora do v1, inclusive nome, documento, status online e objeto `courier`.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `VALIDATION_ERROR`, `ADMIN_DELIVERIES_LIST_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "destination_address": "Endereco de destino",
+        "notes": "Observacao opcional",
+        "status": "em_transito",
+        "created_at": "2026-05-17T12:00:00.000Z",
+        "expires_at": "2026-05-17T12:01:00.000Z",
+        "accepted_at": "2026-05-17T12:00:20.000Z",
+        "collected_at": "2026-05-17T12:02:00.000Z",
+        "in_transit_at": "2026-05-17T12:04:00.000Z",
+        "delivered_at": null,
+        "updated_at": "2026-05-17T12:04:00.000Z",
+        "store": {
+          "name": "Nome da loja",
+          "address": "Endereco operacional da loja"
+        }
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total": 1 }
+  },
+  "message": "Entregas administrativas encontradas"
+}
+```
+
+Fora deste contrato: cancelamento, pagamento externo, alteracao de status, detalhe admin, dados de motoboy, busca textual, filtro por data, polling, realtime, push, cron e drawer por usuario.
 
 ### `GET /api/admin/users/:id`
 

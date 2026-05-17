@@ -8,12 +8,16 @@ import type {
   AdminStoreProfile,
   AdminUserDetail,
   AdminUserListItem,
+  DeliveryStatus,
   DomainUser,
   UserRole,
   UserStatus,
 } from '../types/domain.js';
 import { ApiError } from '../utils/errors.js';
-import type { AdminListUsersQuery } from '../validators/admin.validators.js';
+import type {
+  AdminListDeliveriesQuery,
+  AdminListUsersQuery,
+} from '../validators/admin.validators.js';
 
 const domainUserSelect =
   'id,auth_id,email,role,status,approved_at,approved_by,created_at,updated_at';
@@ -25,12 +29,58 @@ const adminStoreProfileSelect =
   'id,user_id,name,owner_name,address,description,created_at,updated_at';
 const adminCourierProfileSelect = 'id,user_id,full_name,is_online,created_at,updated_at';
 const adminInsightsPendingUserSelect = 'id,role,status,created_at';
+const adminDeliveryListSelect =
+  'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)';
 const userRoles = ['admin', 'logista', 'motoboy'] as const satisfies readonly UserRole[];
 const userStatuses = ['pendente', 'ativo', 'bloqueado'] as const satisfies readonly UserStatus[];
 const latestPendingUsersLimit = 5;
 
 export interface PaginatedUsers {
   items: AdminUserListItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
+interface AdminDeliveryStoreSummary {
+  name: string;
+  address: string;
+}
+
+interface AdminDeliveryRow {
+  id: string;
+  destination_address: string | null;
+  notes: string | null;
+  status: DeliveryStatus;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  collected_at: string | null;
+  in_transit_at: string | null;
+  delivered_at: string | null;
+  updated_at: string;
+  stores?: AdminDeliveryStoreSummary | AdminDeliveryStoreSummary[] | null;
+}
+
+export interface AdminDeliveryListItem {
+  id: string;
+  destination_address: string | null;
+  notes: string | null;
+  status: DeliveryStatus;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  collected_at: string | null;
+  in_transit_at: string | null;
+  delivered_at: string | null;
+  updated_at: string;
+  store: AdminDeliveryStoreSummary;
+}
+
+export interface PaginatedAdminDeliveries {
+  items: AdminDeliveryListItem[];
   pagination: {
     page: number;
     limit: number;
@@ -63,6 +113,32 @@ const toAdminUserListItem = (row: Record<string, unknown>): AdminUserListItem =>
     store_name: extractStoreName(row),
   };
 };
+
+const normalizeDeliveryStoreSummary = (
+  relation: AdminDeliveryRow['stores'],
+): AdminDeliveryStoreSummary => {
+  const store = Array.isArray(relation) ? relation[0] : relation;
+
+  return {
+    name: typeof store?.name === 'string' ? store.name : '',
+    address: typeof store?.address === 'string' ? store.address : '',
+  };
+};
+
+const toAdminDeliveryListItem = (row: AdminDeliveryRow): AdminDeliveryListItem => ({
+  id: row.id,
+  destination_address: row.destination_address,
+  notes: row.notes,
+  status: row.status,
+  created_at: row.created_at,
+  expires_at: row.expires_at,
+  accepted_at: row.accepted_at,
+  collected_at: row.collected_at,
+  in_transit_at: row.in_transit_at,
+  delivered_at: row.delivered_at,
+  updated_at: row.updated_at,
+  store: normalizeDeliveryStoreSummary(row.stores),
+});
 
 const createEmptyUserCounts = (): AdminInsights['user_counts'] => ({
   admin: {
@@ -117,6 +193,38 @@ const listLatestPendingUsersByRole = async (
   }
 
   return (data ?? []) as AdminInsightsPendingUser[];
+};
+
+export const listAdminDeliveries = async (
+  input: AdminListDeliveriesQuery,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<PaginatedAdminDeliveries> => {
+  const offset = (input.page - 1) * input.limit;
+  let query = supabase
+    .from('delivery_requests')
+    .select(adminDeliveryListSelect, { count: 'exact' });
+
+  if (input.status) {
+    query = query.eq('status', input.status);
+  }
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + input.limit - 1);
+
+  if (error) {
+    throw new ApiError(500, 'ADMIN_DELIVERIES_LIST_FAILED', 'Listagem de entregas falhou');
+  }
+
+  return {
+    items: ((data ?? []) as AdminDeliveryRow[]).map(toAdminDeliveryListItem),
+    pagination: {
+      page: input.page,
+      limit: input.limit,
+      total: count ?? 0,
+    },
+  };
 };
 
 export const getAdminInsights = async (

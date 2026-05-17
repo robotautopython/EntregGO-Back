@@ -5,11 +5,16 @@ import {
   blockUser,
   getAdminInsights,
   getUserDetail,
+  listAdminDeliveries,
   listUsers,
   unblockUser,
 } from '../services/admin.service.js';
 import { sendSuccess } from '../utils/api-response.js';
-import type { AdminListUsersQuery, UserIdParams } from '../validators/admin.validators.js';
+import type {
+  AdminListDeliveriesQuery,
+  AdminListUsersQuery,
+  UserIdParams,
+} from '../validators/admin.validators.js';
 
 export const getAdminInsightsController = async (_request: Request, response: Response) => {
   const result = await getAdminInsights();
@@ -21,6 +26,12 @@ export const listUsersController = async (request: Request, response: Response) 
   const result = await listUsers(request.query as unknown as AdminListUsersQuery);
 
   sendSuccess(response, result, 'Usuarios encontrados');
+};
+
+export const listAdminDeliveriesController = async (request: Request, response: Response) => {
+  const result = await listAdminDeliveries(request.query as unknown as AdminListDeliveriesQuery);
+
+  sendSuccess(response, result, 'Entregas administrativas encontradas');
 };
 
 export const getUserDetailController = async (request: Request, response: Response) => {
