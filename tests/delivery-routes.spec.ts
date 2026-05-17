@@ -160,6 +160,16 @@ const createDeliveryListTable = (result: {
   return builder;
 };
 
+const createDeliveryDetailTable = (result: { data: unknown; error: unknown }) => {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    maybeSingle: vi.fn().mockResolvedValue(result),
+  };
+
+  return builder;
+};
+
 const createAvailableDeliveryListTable = (result: {
   data: unknown;
   error: unknown;
@@ -758,6 +768,207 @@ describe('M-05 list store deliveries', () => {
     expect(response.body).toMatchObject({
       success: false,
       error: { code: 'VALIDATION_ERROR' },
+    });
+  });
+});
+
+describe('M-06 get store delivery detail', () => {
+  beforeEach(() => {
+    supabaseMock.getUser.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it('rejects detail lookup without a bearer token', async () => {
+    const response = await request(app).get(`/api/deliveries/${listRowEntregue.id}`).expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it.each([
+    [pendingStoreUser, 'USER_PENDING'],
+    [blockedStoreUser, 'USER_BLOCKED'],
+  ])('rejects detail lookup for store users with status %s', async (domainUser, code) => {
+    mockAuthenticatedUser(domainUser);
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowEntregue.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code },
+    });
+  });
+
+  it('rejects detail lookup from active couriers', async () => {
+    mockAuthenticatedUser(activeCourierUser);
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowEntregue.id}`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it('returns STORE_PROFILE_REQUIRED when the active store has no store profile', async () => {
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable(notFoundResult),
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowEntregue.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'STORE_PROFILE_REQUIRED' },
+    });
+  });
+
+  it('returns a delivery only when it belongs to the authenticated store', async () => {
+    const detailTable = createDeliveryDetailTable({
+      data: listRowEntregue,
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+      delivery_requests: detailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowEntregue.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: listRowEntregue,
+      message: 'Entrega encontrada',
+    });
+
+    const selectArg = (detailTable.select.mock.calls[0] as unknown[])[0] as string;
+    expect(selectArg).not.toContain('store_id');
+    expect(selectArg).not.toContain('courier_id');
+    expect(detailTable.eq).toHaveBeenCalledWith('id', listRowEntregue.id);
+    expect(detailTable.eq).toHaveBeenCalledWith('store_id', storeProfile.id);
+    expect(response.body.data).not.toHaveProperty('store_id');
+    expect(response.body.data).not.toHaveProperty('courier_id');
+    expect(response.body.data).not.toHaveProperty('owner_name');
+    expect(response.body.data).not.toHaveProperty('full_name');
+    expect(response.body.data).not.toHaveProperty('logo_url');
+    expect(response.body.data).not.toHaveProperty('bike_photo_url');
+    expect(response.body.data).not.toHaveProperty('license_photo_url');
+  });
+
+  it('returns DELIVERY_NOT_FOUND for a missing or other-store delivery', async () => {
+    const detailTable = createDeliveryDetailTable({
+      data: null,
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+      delivery_requests: detailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowEntregue.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_NOT_FOUND' },
+    });
+    expect(detailTable.eq).toHaveBeenCalledWith('id', listRowEntregue.id);
+    expect(detailTable.eq).toHaveBeenCalledWith('store_id', storeProfile.id);
+  });
+
+  it('rejects invalid ids before touching store or delivery tables', async () => {
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const detailTable = createDeliveryDetailTable({
+      data: listRowEntregue,
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: detailTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/not-a-uuid')
+      .set('Authorization', 'Bearer store-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(storesTable.select).not.toHaveBeenCalled();
+    expect(detailTable.select).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'store_id=99999999-9999-4999-8999-999999999999',
+    'courier_id=88888888-8888-4888-8888-888888888888',
+    'user_id=11111111-1111-4111-8111-111111111111',
+    'unknown=1',
+  ])('rejects unknown detail query parameters: %s', async (queryString) => {
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const detailTable = createDeliveryDetailTable({
+      data: listRowEntregue,
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: detailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowEntregue.id}?${queryString}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(storesTable.select).not.toHaveBeenCalled();
+    expect(detailTable.select).not.toHaveBeenCalled();
+  });
+
+  it('returns a standardized failure when the detail query fails', async () => {
+    const detailTable = createDeliveryDetailTable({
+      data: null,
+      error: { message: 'db down' },
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+      delivery_requests: detailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowEntregue.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_GET_FAILED' },
     });
   });
 });

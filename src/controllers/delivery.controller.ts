@@ -4,6 +4,7 @@ import {
   acceptDeliveryForCourier,
   createDelivery,
   getActiveDeliveryForCourier,
+  getStoreDeliveryById,
   listAvailableDeliveriesForCourier,
   listCourierDeliveryHistory,
   listStoreDeliveries,
@@ -35,6 +36,13 @@ export const listDeliveriesController = async (request: Request, response: Respo
   );
 
   sendSuccess(response, result, 'Entregas encontradas');
+};
+
+export const getDeliveryController = async (request: Request, response: Response) => {
+  const params = request.params as DeliveryIdParams;
+  const result = await getStoreDeliveryById(params.id, request.auth?.user.id ?? '');
+
+  sendSuccess(response, result, 'Entrega encontrada');
 };
 
 export const listAvailableDeliveriesController = async (request: Request, response: Response) => {

@@ -52,6 +52,8 @@ export const listCourierHistoryQuerySchema = z
 
 export const activeDeliveryQuerySchema = z.object({}).strict();
 
+export const deliveryDetailQuerySchema = z.object({}).strict();
+
 export const deliveryIdParamsSchema = z.object({
   id: z.uuid(),
 });
@@ -65,5 +67,6 @@ export const updateDeliveryStatusSchema = z
 export type ListAvailableDeliveriesQuery = z.infer<typeof listAvailableDeliveriesQuerySchema>;
 export type ListCourierHistoryQuery = z.infer<typeof listCourierHistoryQuerySchema>;
 export type ActiveDeliveryQuery = z.infer<typeof activeDeliveryQuerySchema>;
+export type DeliveryDetailQuery = z.infer<typeof deliveryDetailQuerySchema>;
 export type DeliveryIdParams = z.infer<typeof deliveryIdParamsSchema>;
 export type UpdateDeliveryStatusInput = z.infer<typeof updateDeliveryStatusSchema>;

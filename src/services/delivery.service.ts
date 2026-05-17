@@ -111,6 +111,8 @@ export interface StoreDeliveryListItem {
   updated_at: string;
 }
 
+export type StoreDeliveryDetail = StoreDeliveryListItem;
+
 export interface StoreDeliveryList {
   items: StoreDeliveryListItem[];
   pagination: {
@@ -372,6 +374,31 @@ export const listStoreDeliveries = async (
       total: count ?? 0,
     },
   };
+};
+
+export const getStoreDeliveryById = async (
+  deliveryId: string,
+  domainUserId: string,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<StoreDeliveryDetail> => {
+  const store = await resolveOwnedStore(domainUserId, supabase);
+
+  const { data, error } = await supabase
+    .from('delivery_requests')
+    .select(storeDeliveryListSelect)
+    .eq('id', deliveryId)
+    .eq('store_id', store.id)
+    .maybeSingle<StoreDeliveryDetail>();
+
+  if (error) {
+    throw new ApiError(500, 'DELIVERY_GET_FAILED', 'Busca da entrega falhou');
+  }
+
+  if (!data) {
+    throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
+  }
+
+  return data;
 };
 
 export const listAvailableDeliveriesForCourier = async (

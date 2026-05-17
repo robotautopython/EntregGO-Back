@@ -262,6 +262,23 @@ const apiRequest = async (baseUrl, pathName, token, init = {}) => {
   return { response, body };
 };
 
+const assertNoForbiddenDeliveryFields = (delivery, label) => {
+  for (const fieldName of [
+    'store_id',
+    'courier_id',
+    'owner_name',
+    'full_name',
+    'logo_url',
+    'bike_photo_url',
+    'license_photo_url',
+    'authorization',
+    'headers',
+    'token',
+  ]) {
+    assert(!(fieldName in delivery), `${label} leaked forbidden field ${fieldName}`);
+  }
+};
+
 const expectApiStatus = async (baseUrl, pathName, token, expectedStatus, init = {}) => {
   const { response, body } = await apiRequest(baseUrl, pathName, token, init);
   assert(
@@ -735,6 +752,100 @@ const main = async () => {
       { method: 'PATCH' },
     );
 
+    logStep('validating M-06 store delivery detail flow');
+
+    const flowDeliveryBody = await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries',
+      storeSession.accessToken,
+      201,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          destinationAddress: `Endereco destino ficticio M06 ${stamp}`,
+          notes: 'Entrega temporaria M06',
+        }),
+      },
+    );
+    assert(flowDeliveryBody?.success === true, 'M-06 flow delivery creation failed');
+    assert(flowDeliveryBody.data?.id, 'M-06 flow delivery id missing');
+
+    await expectApiStatus(
+      apiServer.baseUrl,
+      `/api/deliveries/${flowDeliveryBody.data.id}/accept`,
+      courierSession.accessToken,
+      200,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    );
+    await expectApiStatus(
+      apiServer.baseUrl,
+      `/api/deliveries/${flowDeliveryBody.data.id}/status`,
+      courierSession.accessToken,
+      200,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'coletada' }),
+      },
+    );
+    await expectApiStatus(
+      apiServer.baseUrl,
+      `/api/deliveries/${flowDeliveryBody.data.id}/status`,
+      courierSession.accessToken,
+      200,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'em_transito' }),
+      },
+    );
+
+    const detailBody = await expectApiStatus(
+      apiServer.baseUrl,
+      `/api/deliveries/${flowDeliveryBody.data.id}`,
+      storeSession.accessToken,
+      200,
+    );
+    assert(detailBody?.success === true, 'M-06 detail did not return success');
+    assert(detailBody?.message === 'Entrega encontrada', 'M-06 detail message mismatch');
+    assert(detailBody.data?.id === flowDeliveryBody.data.id, 'M-06 detail returned wrong id');
+    assert(detailBody.data?.status === 'em_transito', 'M-06 detail did not show real status');
+    assert(detailBody.data?.accepted_at, 'M-06 detail missing accepted_at');
+    assert(detailBody.data?.collected_at, 'M-06 detail missing collected_at');
+    assert(detailBody.data?.in_transit_at, 'M-06 detail missing in_transit_at');
+    assert(detailBody.data?.delivered_at === null, 'M-06 detail delivered_at should still be null');
+    assertNoForbiddenDeliveryFields(detailBody.data, 'M-06 detail');
+
+    const otherStoreDetail = await expectApiStatus(
+      apiServer.baseUrl,
+      `/api/deliveries/${flowDeliveryBody.data.id}`,
+      pendingSession.accessToken,
+      404,
+    );
+    assert(
+      otherStoreDetail?.error?.code === 'DELIVERY_NOT_FOUND',
+      'M-06 other store did not receive DELIVERY_NOT_FOUND',
+    );
+
+    const forbiddenDetailQuery = await expectApiStatus(
+      apiServer.baseUrl,
+      `/api/deliveries/${flowDeliveryBody.data.id}?store_id=${storeProfile.id}`,
+      storeSession.accessToken,
+      400,
+    );
+    assert(
+      forbiddenDetailQuery?.error?.code === 'VALIDATION_ERROR',
+      'M-06 forbidden query did not return VALIDATION_ERROR',
+    );
+
+    await expectApiStatus(
+      apiServer.baseUrl,
+      '/api/deliveries/not-a-uuid',
+      storeSession.accessToken,
+      400,
+    );
+
     logStep('validating RLS with anon and authenticated clients');
     for (const tableName of [
       'users',
@@ -820,9 +931,12 @@ const main = async () => {
       'delivery_requests',
       deliveryRequestSelect,
     );
+    const visibleCourierDeliveryIds = visibleCourierDeliveries.map((delivery) => delivery.id);
     assert(
-      visibleCourierDeliveries.length === 1 &&
-        visibleCourierDeliveries[0].id === assignedDelivery.id,
+      visibleCourierDeliveryIds.includes(assignedDelivery.id) &&
+        visibleCourierDeliveryIds.includes(flowDeliveryBody.data.id) &&
+        !visibleCourierDeliveryIds.includes(deliveryBody.data.id) &&
+        !visibleCourierDeliveryIds.includes(otherStoreDelivery.id),
       'Courier saw unassigned or non-own delivery requests',
     );
 

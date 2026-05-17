@@ -4,6 +4,7 @@ import {
   acceptDeliveryController,
   createDeliveryController,
   getActiveDeliveryController,
+  getDeliveryController,
   listAvailableDeliveriesController,
   listCourierHistoryController,
   listDeliveriesController,
@@ -15,6 +16,7 @@ import { asyncHandler } from '../utils/async-handler.js';
 import {
   activeDeliveryQuerySchema,
   createDeliverySchema,
+  deliveryDetailQuerySchema,
   deliveryIdParamsSchema,
   listAvailableDeliveriesQuerySchema,
   listCourierHistoryQuerySchema,
@@ -67,6 +69,15 @@ deliveryRouter.get(
   requireRoles('motoboy'),
   validateRequest({ query: listCourierHistoryQuerySchema }),
   asyncHandler(listCourierHistoryController),
+);
+
+deliveryRouter.get(
+  '/:id',
+  authenticate,
+  requireActiveUser,
+  requireRoles('logista'),
+  validateRequest({ params: deliveryIdParamsSchema, query: deliveryDetailQuerySchema }),
+  asyncHandler(getDeliveryController),
 );
 
 deliveryRouter.post(
