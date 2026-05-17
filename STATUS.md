@@ -14,7 +14,7 @@
 
 - [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento ou dados pessoais novos do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
-- [ ] Fechar operacionalmente a M-09A com commit, push, deploy e smoke pos-deploy antes de iniciar nova feature.
+- [ ] Planejar a proxima fatia pequena somente leitura com Cetico, SecurityValidator e PerformanceValidator conforme risco.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
 ## Concluido
@@ -82,11 +82,11 @@
 - [x] M-08 implementada e validada localmente no backend: `GET /api/admin/payments` e `PATCH /api/admin/payments/:id/mark-paid` para controle administrativo simples de pagamento externo, admin ativo, query/body strict, auditoria server-side, idempotencia sem sobrescrever `paid_at`/`marked_by`, resposta sanitizada sem PII financeira e migration aditiva `idx_payments_paid_reference_month_due_date_id`. Indice remoto aplicado e confirmado via `pg_indexes`. Gates Cetico, ImpactValidator, SecurityValidator e PerformanceValidator aprovaram com ressalvas incorporadas. Backend `typecheck`, `test` (174), `lint`, `build` e `git diff --check` passaram.
 - [x] M-08 backend-first publicada e validada em producao: backend funcional `874435496d4f63c505095c910f293ce6a3f64afb` mais hardening `d47e9fecae486824c8f2f0898e65d09830bb3805`; Vercel `success`; smoke publico e autenticado API passaram com dados ficticios, retry preservando auditoria e cleanup completo.
 - [x] M-08 UI admin de pagamento externo publicada e validada em producao: frontend funcional `eb7b54faa6223091a341d75620ab96557e29934f` e documental `dcd2325c190623803dbf38e05ec685c9500b53d4`, consumindo o backend M-08 final `d47e9fecae486824c8f2f0898e65d09830bb3805`; smoke publico e autenticado API+UI passaram com dados ficticios, retry de `mark-paid` preservou `paid_at` e cleanup final retornou `payment_residue=0` e `domain_residue=0`.
-- [x] M-09A detalhe administrativo somente leitura de entrega implementada e validada localmente no backend: `GET /api/admin/deliveries/:id` para admin ativo, params UUID, query vazia strict, filtro por PK `id`, embed `stores(name,address)`, resposta reutilizando o shape sanitizado da M-07 e sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, dados de motoboy, documentos, Storage, tokens ou headers. Gates Cetico, ImpactValidator, SecurityValidator e PerformanceValidator aprovaram com ressalvas incorporadas. Backend `typecheck`, `test` (186), `lint`, `build` passaram; commit, push, deploy e smoke pos-deploy pendentes.
+- [x] M-09A detalhe administrativo somente leitura de entrega publicada e validada em producao: backend `4260d69775f9533783a0b45b3167db37d6423601` adicionou `GET /api/admin/deliveries/:id` para admin ativo, params UUID, query vazia strict, filtro por PK `id`, embed `stores(name,address)`, resposta reutilizando o shape sanitizado da M-07 e sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, dados de motoboy, documentos, Storage, tokens ou headers. Smoke pos-deploy confirmou `/api/health` 200, rota sem token 401, inexistente `DELIVERY_NOT_FOUND`, query proibida `VALIDATION_ERROR`, nao-admin `FORBIDDEN_ROLE`, detalhe real sanitizado e cleanup completo.
 
 ## Bloqueios
 
-- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos ou cancelamento. O detalhe admin somente leitura de entrega foi implementado e validado localmente na M-09A, mas ainda precisa de commit, push, deploy e smoke pos-deploy para ser considerado fechado em producao.
+- Projeto ainda nao possui uploads, push real, realtime real, cron, dashboards complexos ou cancelamento. O detalhe admin somente leitura de entrega esta publicado e validado em producao na M-09A.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
@@ -98,5 +98,5 @@
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
 **Testes:** passando no backend e frontend (M-09A backend: 186 testes; M-09A frontend: 89 testes)
-**Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first e M-08 UI validadas em producao; M-09A ainda local
+**Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first, M-08 UI e M-09A validadas em producao
 **Riscos abertos:** 4

@@ -760,3 +760,20 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 186 testes), `npm run lint` e `npm run build` passaram. Teste focado `npm test -- tests/admin-routes.spec.ts` passou com 53 testes. Nenhum secret, token, cookie, header Authorization ou service role foi impresso.
 
 **Fora do escopo preservado:** cancelamento, alteracao de status, dados pessoais do motoboy, busca textual, filtro por data, dashboard, realtime, push, polling automatico, cron, documentos/Storage, pagamento externo, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago.
+
+## 2026-05-17 - M-09A DETALHE ADMINISTRATIVO DE ENTREGA FECHADO EM PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O backend da M-09A foi publicado em `origin/main` no commit `4260d69775f9533783a0b45b3167db37d6423601`, adicionando `GET /api/admin/deliveries/:id` em producao. A rota permanece somente leitura, com admin ativo, params UUID, query vazia strict e resposta sanitizada igual M-07.
+**Arquivos modificados nesta rodada documental:** `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `/admin/entregas/[id]` publicado no frontend `c03e759a8e2e874a93cffec8ed78277f6dad9342`
+**Agentes utilizados:** Camisa10, DeployObservability, Documentador
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** `npm run typecheck`, `npm test` (186), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
+
+**Smoke publico/API:** `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET /api/admin/deliveries/<uuid>` sem token retornou `401 AUTH_REQUIRED`. Smoke autenticado confirmou admin ativo abrindo detalhe real, UUID inexistente com `DELIVERY_NOT_FOUND`, query `courier_id` com `VALIDATION_ERROR`, usuario nao-admin com `FORBIDDEN_ROLE` e payload sem campos proibidos.
+
+**Cleanup:** dados ficticios removidos; residuos finais `delivery=0`, `store=0`, `courier=0`, `domain=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+**Fora do escopo preservado:** cancelamento, alteracao de status, dados pessoais do motoboy, busca textual, filtro por data, dashboard, realtime, push, polling automatico, cron, documentos/Storage, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago.
