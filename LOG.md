@@ -541,3 +541,14 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 133 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (9 arquivos, 63 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erros de whitespace. Nenhum secret, token, cookie, header Authorization ou service role foi impresso.
 
 **Fora do escopo preservado:** M-06 funcional, realtime, push/Web Push/VAPID, polling automatico, cancelamento, cron/expiracao automatica, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio, dados pessoais do motoboy, SQL/migration/RLS/grants/policies e deploy.
+
+## 2026-05-17 - HARDENING POS-M-06 POS-DEPLOY PRODUCAO APROVADO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** O hardening foi publicado em producao com backend funcional `ad5ded4` e frontend funcional `8771b9b`. Os checks GitHub/Vercel retornaram `success` e `Deployment has completed` nos dois repos. O fechamento documental posterior nao altera runtime.
+**Arquivos publicados:** backend `src/services/delivery.service.ts`, `tests/delivery-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`; frontend `src/types/delivery.ts`, testes de entrega/loja/motoboy e documentos de contrato/status/log.
+**Status:** fechado em producao
+
+**Validacoes pos-deploy:** Smoke publico confirmou `GET https://entreggoback.vercel.app/api/health` -> `200`, `GET /api/deliveries/<uuid>` sem token -> `401`, `POST /api/deliveries` sem token -> `401`, `POST /api/deliveries/<uuid>/accept` sem token -> `401` e `https://entreggo.vercel.app/loja/entregas/<uuid>` -> `200`. Smoke autenticado de producao com dados ficticios temporarios confirmou: loja cria entrega e a resposta nao contem `store_id`/`courier_id`; a UI de detalhe abre para o `id`; motoboy aceita e a resposta nao contem `courier_id`, `destination_address` nem `notes`; transicao para `coletada` funciona; detalhe da loja permanece sem identificadores internos; cleanup completo. Os helpers de log foram verificados no codigo: `delivery_accept` loga apenas `event`, `delivery_id` e `result`; `delivery_status_update` loga apenas `event`, `delivery_id`, `from_status`, `to_status` e `result`.
+
+**Fora do escopo preservado:** M-06 funcional, realtime, push/Web Push/VAPID, polling automatico, cancelamento, cron/expiracao automatica, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio, dados pessoais do motoboy, SQL/migration/RLS/grants/policies e dados pessoais em logs.
