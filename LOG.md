@@ -637,3 +637,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Cleanup:** `finally` removeu todos os recursos temporarios; verificacao final retornou `domain_residue=0`, `store_residue=0`, `courier_residue=0`, `delivery_residue=0`, `auth_residue=0`.
 
 **Fora do escopo preservado:** codigo funcional novo no backend, SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, GPS/mapa/raio, Storage/documentos, historico admin, pagamento externo, detalhe unico do historico, busca textual, filtro por data e dados pessoais do motoboy. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+## 2026-05-17 - FATIA 4C DETALHE UNICO DO HISTORICO DO MOTOBOY
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Escolhida conservadoramente a menor proxima fatia do fluxo principal: detalhe unico do historico do motoboy. Foi implementado `GET /api/deliveries/history/:id` antes da rota generica `/:id`, com os mesmos guards do historico (`authenticate`, `requireActiveUser`, `requireRoles('motoboy')`), params UUID, query vazia strict, `courier_id` derivado por `couriers.user_id = domainUser.id`, sem exigir `is_online`, filtro server-side por `id` + `courier_id` e resposta sanitizada com o mesmo mapper da Fatia 4B.
+**Arquivos modificados (backend):** `src/app.ts`, `src/controllers/delivery.controller.ts`, `src/routes/delivery.routes.ts`, `src/services/delivery.service.ts`, `tests/delivery-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `/motoboy/historico/[id]` consome o endpoint via REST/Bearer token, sem Supabase direto.
+**Agentes utilizados:** Camisa10, ImpactValidator, SecurityValidator, TestEngineer, Documentador
+**Status:** fechado localmente; commit/deploy pendentes
+
+**Gates:** ImpactValidator aprovou a fatia por ser leitura aditiva e menor que cancelamento/admin/pagamento. SecurityValidator aprovou com condicoes de isolamento por courier da sessao, query strict, 404 para outro courier e ausencia de IDs internos/PII/tokens/headers. TestEngineer aprovou matriz minima cobrindo auth, role/status, offline permitido, isolamento, validacao, sanitizacao, erro recuperavel e entrada pela lista.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 148 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. Frontend `npm run typecheck`, `npm test` (10 arquivos, 70 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. `.env.local` segue ignorado por `.gitignore` e nao aparece em `git ls-files`.
+
+**Fora do escopo preservado:** SQL/migration/RLS/grants/policies, realtime, push/Web Push/VAPID, polling automatico, cron, cancelamento, detalhe admin, historico admin, busca textual, filtro por data, pagamento externo, Storage/documentos, GPS/mapa/raio, dados pessoais novos do motoboy e qualquer exposicao de token, cookie, header Authorization, service role ou secret.

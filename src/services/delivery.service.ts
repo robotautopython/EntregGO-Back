@@ -595,6 +595,31 @@ export const listCourierDeliveryHistory = async (
   };
 };
 
+export const getCourierDeliveryHistoryById = async (
+  deliveryId: string,
+  domainUserId: string,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<CourierDeliveryHistoryItem> => {
+  const courier = await resolveCourier(domainUserId, supabase);
+
+  const { data, error } = await supabase
+    .from('delivery_requests')
+    .select(courierHistoryDeliverySelect)
+    .eq('id', deliveryId)
+    .eq('courier_id', courier.id)
+    .maybeSingle<CourierHistoryDeliveryRow>();
+
+  if (error) {
+    throw new ApiError(500, 'DELIVERY_HISTORY_GET_FAILED', 'Busca do historico falhou');
+  }
+
+  if (!data) {
+    throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
+  }
+
+  return toCourierDeliveryHistoryItem(data);
+};
+
 export const updateDeliveryStatusForCourier = async (
   deliveryId: string,
   status: CourierTransitionStatus,

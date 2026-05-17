@@ -4,6 +4,7 @@ import {
   acceptDeliveryController,
   createDeliveryController,
   getActiveDeliveryController,
+  getCourierHistoryDeliveryController,
   getDeliveryController,
   listAvailableDeliveriesController,
   listCourierHistoryController,
@@ -69,6 +70,15 @@ deliveryRouter.get(
   requireRoles('motoboy'),
   validateRequest({ query: listCourierHistoryQuerySchema }),
   asyncHandler(listCourierHistoryController),
+);
+
+deliveryRouter.get(
+  '/history/:id',
+  authenticate,
+  requireActiveUser,
+  requireRoles('motoboy'),
+  validateRequest({ params: deliveryIdParamsSchema, query: deliveryDetailQuerySchema }),
+  asyncHandler(getCourierHistoryDeliveryController),
 );
 
 deliveryRouter.get(

@@ -4,6 +4,7 @@ import {
   acceptDeliveryForCourier,
   createDelivery,
   getActiveDeliveryForCourier,
+  getCourierDeliveryHistoryById,
   getStoreDeliveryById,
   listAvailableDeliveriesForCourier,
   listCourierDeliveryHistory,
@@ -78,6 +79,13 @@ export const listCourierHistoryController = async (request: Request, response: R
   );
 
   sendSuccess(response, result, 'Historico de entregas encontrado');
+};
+
+export const getCourierHistoryDeliveryController = async (request: Request, response: Response) => {
+  const params = request.params as DeliveryIdParams;
+  const result = await getCourierDeliveryHistoryById(params.id, request.auth?.user.id ?? '');
+
+  sendSuccess(response, result, 'Entrega do historico encontrada');
 };
 
 export const updateDeliveryStatusController = async (request: Request, response: Response) => {

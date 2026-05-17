@@ -1313,6 +1313,218 @@ describe('Fatia 4B courier delivery history', () => {
       error: { code: 'DELIVERY_HISTORY_LIST_FAILED' },
     });
   });
+
+  it('rejects history detail without a bearer token', async () => {
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}`)
+      .expect(401);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'AUTH_REQUIRED' },
+    });
+  });
+
+  it('rejects history detail from non-couriers', async () => {
+    mockAuthenticatedUser(activeStoreUser);
+
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'FORBIDDEN_ROLE' },
+    });
+  });
+
+  it.each([
+    [pendingCourierUser, 'USER_PENDING'],
+    [blockedCourierUser, 'USER_BLOCKED'],
+  ])('rejects history detail for courier users with status %s', async (domainUser, code) => {
+    mockAuthenticatedUser(domainUser);
+
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code },
+    });
+  });
+
+  it('returns COURIER_PROFILE_REQUIRED when the active courier detail has no profile', async () => {
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable(notFoundResult),
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'COURIER_PROFILE_REQUIRED' },
+    });
+  });
+
+  it('returns one history delivery assigned to the authenticated courier, even when offline', async () => {
+    const historyDetailTable = createDeliveryDetailTable({
+      data: historyDeliveredRow,
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({
+        data: offlineCourierProfile,
+        error: null,
+      }),
+      delivery_requests: historyDetailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        id: historyDeliveredRow.id,
+        destination_address: historyDeliveredRow.destination_address,
+        notes: historyDeliveredRow.notes,
+        status: historyDeliveredRow.status,
+        created_at: historyDeliveredRow.created_at,
+        expires_at: historyDeliveredRow.expires_at,
+        accepted_at: historyDeliveredRow.accepted_at,
+        collected_at: historyDeliveredRow.collected_at,
+        in_transit_at: historyDeliveredRow.in_transit_at,
+        delivered_at: historyDeliveredRow.delivered_at,
+        updated_at: historyDeliveredRow.updated_at,
+        store: storeSummary,
+      },
+      message: 'Entrega do historico encontrada',
+    });
+
+    expect(historyDetailTable.eq).toHaveBeenCalledWith('id', historyDeliveredRow.id);
+    expect(historyDetailTable.eq).toHaveBeenCalledWith('courier_id', offlineCourierProfile.id);
+    const selectArg = (historyDetailTable.select.mock.calls[0] as unknown[])[0] as string;
+    expect(selectArg).not.toContain('store_id');
+    expect(selectArg).not.toContain('courier_id');
+    expect(response.body.data).not.toHaveProperty('store_id');
+    expect(response.body.data).not.toHaveProperty('courier_id');
+    expect(response.body.data).not.toHaveProperty('owner_name');
+    expect(response.body.data).not.toHaveProperty('logo_url');
+    expect(response.body.data).not.toHaveProperty('description');
+  });
+
+  it('returns DELIVERY_NOT_FOUND for another courier history detail', async () => {
+    const historyDetailTable = createDeliveryDetailTable({
+      data: null,
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({ data: courierProfile, error: null }),
+      delivery_requests: historyDetailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_NOT_FOUND' },
+    });
+    expect(historyDetailTable.eq).toHaveBeenCalledWith('id', historyDeliveredRow.id);
+    expect(historyDetailTable.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
+  });
+
+  it.each([
+    'courier_id=99999999-9999-4999-8999-999999999999',
+    'store_id=55555555-5555-4555-8555-555555555555',
+    'status=entregue',
+    'page=1',
+    'limit=20',
+    'unknown=1',
+  ])('rejects unknown history detail query parameters: %s', async (queryString) => {
+    const couriersTable = createSelectSingleTable({
+      data: courierProfile,
+      error: null,
+    });
+    const historyDetailTable = createDeliveryDetailTable({
+      data: historyDeliveredRow,
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: couriersTable,
+      delivery_requests: historyDetailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}?${queryString}`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(couriersTable.select).not.toHaveBeenCalled();
+    expect(historyDetailTable.select).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid history detail UUID', async () => {
+    const couriersTable = createSelectSingleTable({
+      data: courierProfile,
+      error: null,
+    });
+    const historyDetailTable = createDeliveryDetailTable({
+      data: historyDeliveredRow,
+      error: null,
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: couriersTable,
+      delivery_requests: historyDetailTable,
+    });
+
+    const response = await request(app)
+      .get('/api/deliveries/history/not-a-uuid')
+      .set('Authorization', 'Bearer courier-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(couriersTable.select).not.toHaveBeenCalled();
+    expect(historyDetailTable.select).not.toHaveBeenCalled();
+  });
+
+  it('returns a standardized failure when the history detail query fails', async () => {
+    const historyDetailTable = createDeliveryDetailTable({
+      data: null,
+      error: { message: 'db down' },
+    });
+    mockAuthenticatedUser(activeCourierUser, {
+      couriers: createSelectSingleTable({ data: courierProfile, error: null }),
+      delivery_requests: historyDetailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/history/${historyDeliveredRow.id}`)
+      .set('Authorization', 'Bearer courier-token')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_HISTORY_GET_FAILED' },
+    });
+  });
 });
 
 describe('Fatia 1 courier available deliveries', () => {

@@ -643,7 +643,51 @@ Resposta:
 }
 ```
 
-Fora desta fatia: busca textual, filtro por data, detalhe unico, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico admin, confirmacao de pagamento externo, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
+### `GET /api/deliveries/history/:id`
+
+Retorna o detalhe de uma entrega do historico atribuida ao motoboy autenticado. Exige `Authorization: Bearer <access_token>`, usuario de dominio com `role=motoboy`, `status=ativo` e perfil em `couriers`. Nao exige `is_online=true`, porque historico nao representa disponibilidade operacional.
+
+Params:
+
+- `id`: UUID da entrega.
+
+Query params: nenhum. Qualquer parametro gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O backend resolve `couriers.id` por `couriers.user_id = domainUser.id`; o client nunca envia `courier_id`.
+- Como o backend usa service role (RLS nao se aplica server-side), o isolamento multi-tenant e garantido pelo filtro server-side `id=<id>` e `courier_id=<courier da sessao>`.
+- Entrega inexistente ou atribuida a outro courier retorna `DELIVERY_NOT_FOUND`.
+- A resposta reutiliza o shape sanitizado do historico paginado e nunca inclui `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, documentos, Storage, email, `auth_id`, tokens ou headers.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `DELIVERY_HISTORY_GET_FAILED`.
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "66666666-6666-4666-8666-666666666666",
+    "destination_address": "Rua Destino, 456",
+    "notes": "Entregar na portaria",
+    "status": "entregue",
+    "created_at": "2026-05-16T12:00:00.000Z",
+    "expires_at": "2026-05-16T12:10:00.000Z",
+    "accepted_at": "2026-05-16T12:01:00.000Z",
+    "collected_at": "2026-05-16T12:03:00.000Z",
+    "in_transit_at": "2026-05-16T12:05:00.000Z",
+    "delivered_at": "2026-05-16T12:12:00.000Z",
+    "updated_at": "2026-05-16T12:12:00.000Z",
+    "store": {
+      "name": "Loja Centro",
+      "address": "Rua Origem, 123"
+    }
+  },
+  "message": "Entrega do historico encontrada"
+}
+```
+
+Fora desta fatia: busca textual, filtro por data, cancelamento, realtime, push/Web Push/VAPID, cron/expiracao automatica, historico admin, confirmacao de pagamento externo, Storage, geolocalizacao/GPS, disponibilidade por raio, SQL/migration/RLS/grants/policies novos.
 
 ## Fluxo principal loja -> motoboy -> loja
 
