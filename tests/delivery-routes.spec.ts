@@ -137,13 +137,20 @@ const createSelectSingleTable = (result: unknown) => ({
   })),
 });
 
-const createInsertSingleTable = (result: unknown) => ({
-  insert: vi.fn(() => ({
-    select: vi.fn(() => ({
-      single: vi.fn().mockResolvedValue(result),
-    })),
-  })),
-});
+const createInsertSingleTable = (result: unknown) => {
+  const singleBuilder = {
+    single: vi.fn().mockResolvedValue(result),
+  };
+  const insertBuilder = {
+    select: vi.fn(() => singleBuilder),
+  };
+
+  return {
+    insert: vi.fn(() => insertBuilder),
+    insertBuilder,
+    singleBuilder,
+  };
+};
 
 const createDeliveryListTable = (result: {
   data: unknown;
@@ -451,7 +458,19 @@ describe('M-04A delivery routes', () => {
 
     expect(response.body).toEqual({
       success: true,
-      data: deliveryRequest,
+      data: {
+        id: deliveryRequest.id,
+        destination_address: deliveryRequest.destination_address,
+        notes: deliveryRequest.notes,
+        status: deliveryRequest.status,
+        created_at: deliveryRequest.created_at,
+        expires_at: deliveryRequest.expires_at,
+        accepted_at: deliveryRequest.accepted_at,
+        collected_at: deliveryRequest.collected_at,
+        in_transit_at: deliveryRequest.in_transit_at,
+        delivered_at: deliveryRequest.delivered_at,
+        updated_at: deliveryRequest.updated_at,
+      },
       message: 'Solicitacao de entrega criada',
     });
 
@@ -460,12 +479,18 @@ describe('M-04A delivery routes', () => {
       destination_address: validPayload.destinationAddress,
       notes: validPayload.notes,
     });
+    const selectArg = (
+      deliveryRequestsTable.insertBuilder.select.mock.calls[0] as unknown[]
+    )[0] as string;
+    expect(selectArg).not.toContain('store_id');
+    expect(selectArg).not.toContain('courier_id');
     expect(response.body.data).not.toHaveProperty('email');
+    expect(response.body.data).not.toHaveProperty('store_id');
+    expect(response.body.data).not.toHaveProperty('courier_id');
     expect(response.body.data).not.toHaveProperty('owner_name');
     expect(response.body.data).not.toHaveProperty('full_name');
     expect(response.body.data).not.toHaveProperty('logo_url');
     expect(response.body.data.status).toBe('aguardando');
-    expect(response.body.data.courier_id).toBeNull();
   });
 
   it('creates a waiting delivery request with only notes and persists null destination', async () => {
@@ -1822,7 +1847,6 @@ describe('Fatia 4A courier delivery status transitions', () => {
       expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toEqual({
         event: 'delivery_status_update',
         delivery_id: deliveryRequest.id,
-        courier_id: courierProfile.id,
         from_status: previousStatus,
         to_status: targetStatus,
         result: 'updated',
@@ -1963,7 +1987,6 @@ describe('Fatia 4A courier delivery status transitions', () => {
     expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toEqual({
       event: 'delivery_status_update',
       delivery_id: deliveryRequest.id,
-      courier_id: courierProfile.id,
       from_status: 'aceita',
       to_status: 'coletada',
       result: 'failed',
@@ -2009,7 +2032,6 @@ describe('Fatia 1 courier delivery acceptance', () => {
       data: {
         id: acceptedDeliveryState.id,
         status: 'aceita',
-        courier_id: courierProfile.id,
         accepted_at: acceptedDeliveryState.accepted_at,
         created_at: acceptedDeliveryState.created_at,
         expires_at: acceptedDeliveryState.expires_at,
@@ -2028,15 +2050,15 @@ describe('Fatia 1 courier delivery acceptance', () => {
     expect(acceptTable.updateBuilder.is).toHaveBeenCalledWith('courier_id', null);
     expect(acceptTable.updateBuilder.gt).toHaveBeenCalledWith('expires_at', 'now');
     expect(acceptTable.updateBuilder.select).toHaveBeenCalledWith(
-      'id,status,courier_id,accepted_at,created_at,expires_at,stores(name,address)',
+      'id,status,accepted_at,created_at,expires_at,stores(name,address)',
     );
     expect(acceptTable.select).not.toHaveBeenCalled();
+    expect(response.body.data).not.toHaveProperty('courier_id');
     expect(response.body.data).not.toHaveProperty('destination_address');
     expect(response.body.data).not.toHaveProperty('notes');
     expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toEqual({
       event: 'delivery_accept',
       delivery_id: deliveryRequest.id,
-      courier_id: courierProfile.id,
       result: 'accepted',
     });
   });
@@ -2125,9 +2147,9 @@ describe('Fatia 1 courier delivery acceptance', () => {
       data: {
         id: deliveryRequest.id,
         status: 'aceita',
-        courier_id: courierProfile.id,
       },
     });
+    expect(response.body.data).not.toHaveProperty('courier_id');
     expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toMatchObject({
       result: 'idempotent',
     });

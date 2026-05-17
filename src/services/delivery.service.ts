@@ -13,12 +13,12 @@ import type {
 
 const storeOwnershipSelect = 'id,user_id';
 const courierOwnershipSelect = 'id,user_id,is_online';
-const deliveryRequestSelect =
-  'id,store_id,destination_address,notes,status,courier_id,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at';
 const storeDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at';
 const courierAvailableDeliverySelect = 'id,status,created_at,expires_at,stores(name,address)';
 const courierAcceptedDeliverySelect =
+  'id,status,accepted_at,created_at,expires_at,stores(name,address)';
+const courierAcceptedDeliveryConflictSelect =
   'id,status,courier_id,accepted_at,created_at,expires_at,stores(name,address)';
 const courierActiveDeliverySelect =
   'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)';
@@ -80,8 +80,11 @@ interface CourierDeliveryRow {
 }
 
 interface CourierAcceptedDeliveryRow extends CourierDeliveryRow {
-  courier_id: string | null;
   accepted_at: string | null;
+}
+
+interface CourierAcceptedDeliveryConflictRow extends CourierAcceptedDeliveryRow {
+  courier_id: string | null;
 }
 
 interface CourierActiveDeliveryRow extends CourierDeliveryRow {
@@ -142,7 +145,6 @@ export interface CourierAvailableDeliveryList {
 export interface CourierAcceptedDeliveryState {
   id: string;
   status: DeliveryRequest['status'];
-  courier_id: string | null;
   accepted_at: string | null;
   created_at: string;
   expires_at: string;
@@ -266,17 +268,57 @@ const toCourierAvailableDeliveryListItem = (
   store: normalizeStoreSummary(row.stores),
 });
 
+const toStoreDeliveryListItem = (row: StoreDeliveryListItem): StoreDeliveryListItem => ({
+  id: row.id,
+  destination_address: row.destination_address,
+  notes: row.notes,
+  status: row.status,
+  created_at: row.created_at,
+  expires_at: row.expires_at,
+  accepted_at: row.accepted_at,
+  collected_at: row.collected_at,
+  in_transit_at: row.in_transit_at,
+  delivered_at: row.delivered_at,
+  updated_at: row.updated_at,
+});
+
 const toCourierAcceptedDeliveryState = (
   row: CourierAcceptedDeliveryRow,
 ): CourierAcceptedDeliveryState => ({
   id: row.id,
   status: row.status,
-  courier_id: row.courier_id,
   accepted_at: row.accepted_at,
   created_at: row.created_at,
   expires_at: row.expires_at,
   store: normalizeStoreSummary(row.stores),
 });
+
+const logDeliveryAccept = (deliveryId: string, result: string) => {
+  console.log(
+    JSON.stringify({
+      event: 'delivery_accept',
+      delivery_id: deliveryId,
+      result,
+    }),
+  );
+};
+
+const logDeliveryStatusUpdate = (
+  deliveryId: string,
+  fromStatus: DeliveryRequest['status'] | null,
+  toStatus: CourierTransitionStatus,
+  result: string,
+) => {
+  console.log(
+    JSON.stringify({
+      event: 'delivery_status_update',
+      delivery_id: deliveryId,
+      from_status: fromStatus,
+      to_status: toStatus,
+      result,
+    }),
+  );
+};
 
 const toCourierDeliveryStatusState = (
   row: CourierActiveDeliveryRow,
@@ -319,7 +361,7 @@ export const createDelivery = async (
   input: CreateDeliveryInput,
   domainUserId: string,
   supabase: SupabaseClient = getSupabaseAdminClient(),
-): Promise<DeliveryRequest> => {
+): Promise<StoreDeliveryDetail> => {
   const store = await resolveOwnedStore(domainUserId, supabase);
 
   const destinationAddress = normalizeOptionalText(input.destinationAddress);
@@ -331,14 +373,14 @@ export const createDelivery = async (
       destination_address: destinationAddress,
       notes,
     })
-    .select(deliveryRequestSelect)
-    .single<DeliveryRequest>();
+    .select(storeDeliveryListSelect)
+    .single<StoreDeliveryDetail>();
 
   if (error || !data) {
     throw new ApiError(500, 'DELIVERY_CREATE_FAILED', 'Solicitacao de entrega nao pode ser criada');
   }
 
-  return data;
+  return toStoreDeliveryListItem(data);
 };
 
 export const listStoreDeliveries = async (
@@ -367,7 +409,7 @@ export const listStoreDeliveries = async (
   }
 
   return {
-    items: (data ?? []) as StoreDeliveryListItem[],
+    items: ((data ?? []) as StoreDeliveryListItem[]).map(toStoreDeliveryListItem),
     pagination: {
       page: input.page,
       limit: input.limit,
@@ -398,7 +440,7 @@ export const getStoreDeliveryById = async (
     throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
   }
 
-  return data;
+  return toStoreDeliveryListItem(data);
 };
 
 export const listAvailableDeliveriesForCourier = async (
@@ -454,68 +496,33 @@ export const acceptDeliveryForCourier = async (
     .maybeSingle<CourierAcceptedDeliveryRow>();
 
   if (acceptError) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_accept',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        result: 'failed',
-      }),
-    );
+    logDeliveryAccept(deliveryId, 'failed');
     throw new ApiError(500, 'DELIVERY_ACCEPT_FAILED', 'Aceite de entrega falhou');
   }
 
   if (accepted) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_accept',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        result: 'accepted',
-      }),
-    );
+    logDeliveryAccept(deliveryId, 'accepted');
     return toCourierAcceptedDeliveryState(accepted);
   }
 
   const { data: current, error: currentError } = await supabase
     .from('delivery_requests')
-    .select(courierAcceptedDeliverySelect)
+    .select(courierAcceptedDeliveryConflictSelect)
     .eq('id', deliveryId)
-    .maybeSingle<CourierAcceptedDeliveryRow>();
+    .maybeSingle<CourierAcceptedDeliveryConflictRow>();
 
   if (currentError) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_accept',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        result: 'failed',
-      }),
-    );
+    logDeliveryAccept(deliveryId, 'failed');
     throw new ApiError(500, 'DELIVERY_ACCEPT_FAILED', 'Aceite de entrega falhou');
   }
 
   if (!current) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_accept',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        result: 'not_found',
-      }),
-    );
+    logDeliveryAccept(deliveryId, 'not_found');
     throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
   }
 
   if (current.courier_id === courier.id) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_accept',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        result: 'idempotent',
-      }),
-    );
+    logDeliveryAccept(deliveryId, 'idempotent');
     return toCourierAcceptedDeliveryState(current);
   }
 
@@ -523,25 +530,11 @@ export const acceptDeliveryForCourier = async (
   const stillWaitingWithoutCourier = current.status === 'aguardando' && current.courier_id === null;
 
   if (deliveryExpired && stillWaitingWithoutCourier) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_accept',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        result: 'expired',
-      }),
-    );
+    logDeliveryAccept(deliveryId, 'expired');
     throw new ApiError(409, 'DELIVERY_EXPIRED', 'Entrega expirada');
   }
 
-  console.log(
-    JSON.stringify({
-      event: 'delivery_accept',
-      delivery_id: deliveryId,
-      courier_id: courier.id,
-      result: 'already_accepted',
-    }),
-  );
+  logDeliveryAccept(deliveryId, 'already_accepted');
   throw new ApiError(409, 'ALREADY_ACCEPTED', 'Entrega ja aceita');
 };
 
@@ -625,30 +618,12 @@ export const updateDeliveryStatusForCourier = async (
     .maybeSingle<CourierActiveDeliveryRow>();
 
   if (updateError) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_status_update',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        from_status: transition.from,
-        to_status: status,
-        result: 'failed',
-      }),
-    );
+    logDeliveryStatusUpdate(deliveryId, transition.from, status, 'failed');
     throw new ApiError(500, 'DELIVERY_STATUS_UPDATE_FAILED', 'Atualizacao de status falhou');
   }
 
   if (updated) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_status_update',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        from_status: transition.from,
-        to_status: status,
-        result: 'updated',
-      }),
-    );
+    logDeliveryStatusUpdate(deliveryId, transition.from, status, 'updated');
     return toCourierDeliveryStatusState(updated);
   }
 
@@ -660,56 +635,20 @@ export const updateDeliveryStatusForCourier = async (
     .maybeSingle<CourierActiveDeliveryRow>();
 
   if (currentError) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_status_update',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        from_status: transition.from,
-        to_status: status,
-        result: 'failed',
-      }),
-    );
+    logDeliveryStatusUpdate(deliveryId, transition.from, status, 'failed');
     throw new ApiError(500, 'DELIVERY_STATUS_UPDATE_FAILED', 'Atualizacao de status falhou');
   }
 
   if (!current) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_status_update',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        from_status: null,
-        to_status: status,
-        result: 'not_found',
-      }),
-    );
+    logDeliveryStatusUpdate(deliveryId, null, status, 'not_found');
     throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
   }
 
   if (current.status === status) {
-    console.log(
-      JSON.stringify({
-        event: 'delivery_status_update',
-        delivery_id: deliveryId,
-        courier_id: courier.id,
-        from_status: current.status,
-        to_status: status,
-        result: 'idempotent',
-      }),
-    );
+    logDeliveryStatusUpdate(deliveryId, current.status, status, 'idempotent');
     return toCourierDeliveryStatusState(current);
   }
 
-  console.log(
-    JSON.stringify({
-      event: 'delivery_status_update',
-      delivery_id: deliveryId,
-      courier_id: courier.id,
-      from_status: current.status,
-      to_status: status,
-      result: 'invalid_transition',
-    }),
-  );
+  logDeliveryStatusUpdate(deliveryId, current.status, status, 'invalid_transition');
   throw new ApiError(409, 'INVALID_DELIVERY_TRANSITION', 'Transicao de entrega invalida');
 };

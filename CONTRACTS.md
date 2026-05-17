@@ -265,6 +265,7 @@ Regras:
 - `notes` e opcional; quando ausente, vazio ou somente whitespace, e gravado como `null`.
 - A entrega nasce com `status=aguardando`, `courier_id=null` e `expires_at` definido pelo default do banco.
 - Escritas client-side em `delivery_requests` seguem negadas por RLS/grants; o backend usa service role.
+- A resposta e sanitizada e nunca inclui `store_id`, `courier_id`, dados de motoboy, documentos, Storage, tokens ou headers.
 
 Resposta:
 
@@ -273,11 +274,9 @@ Resposta:
   "success": true,
   "data": {
     "id": "uuid",
-    "store_id": "uuid",
     "destination_address": null,
     "notes": "Observacao opcional",
     "status": "aguardando",
-    "courier_id": null,
     "created_at": "2026-05-15T20:00:00.000Z",
     "expires_at": "2026-05-15T20:01:00.000Z",
     "accepted_at": null,
@@ -440,8 +439,8 @@ Regras:
 - O aceite usa update condicional em uma unica operacao via service role: `status='aguardando'`, `courier_id is null`, `expires_at > now()`, setando `status='aceita'`, `courier_id=<courier.id>` e `accepted_at=now()`.
 - Uma linha atualizada retorna `200` com estado sanitizado.
 - Zero linhas atualizadas faz uma unica releitura leve por `id` para desambiguar: inexistente `DELIVERY_NOT_FOUND`, mesmo courier `200` idempotente, outro courier/status indisponivel `ALREADY_ACCEPTED`, ou aguardando expirada `DELIVERY_EXPIRED`.
-- O log operacional e uma linha JSON via `console.log` com apenas `event`, `delivery_id`, `courier_id` e `result`; nao inclui nome, endereco, email, token, header, destination_address ou notes.
-- A resposta nunca inclui `destination_address`, `notes`, `owner_name`, `logo_url`, `description` ou PII fora de `store.name` e `store.address`.
+- O log operacional e uma linha JSON via `console.log` com apenas `event`, `delivery_id` e `result`; nao inclui `courier_id`, nome, endereco, email, token, header, destination_address ou notes.
+- A resposta nunca inclui `courier_id`, `destination_address`, `notes`, `owner_name`, `logo_url`, `description` ou PII fora de `store.name` e `store.address`.
 - Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `COURIER_OFFLINE`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `ALREADY_ACCEPTED`, `DELIVERY_EXPIRED`, `DELIVERY_ACCEPT_FAILED`.
 
 Resposta:
@@ -452,7 +451,6 @@ Resposta:
   "data": {
     "id": "uuid",
     "status": "aceita",
-    "courier_id": "uuid",
     "accepted_at": "2026-05-16T12:00:20.000Z",
     "created_at": "2026-05-16T12:00:00.000Z",
     "expires_at": "2026-05-16T12:01:00.000Z",
@@ -548,7 +546,7 @@ Regras:
 - O update e condicional por `id`, `courier_id` derivado e status anterior esperado. Transicoes pos-aceite nao usam `expires_at > now()`.
 - Retry do mesmo status e idempotente e retorna o estado atual sem sobrescrever timestamp.
 - A resposta e sanitizada e nunca inclui `store_id`, `courier_id`, `owner_name`, `logo_url`, `description`, documentos/Storage, email, tokens, secrets ou timestamps de transicao.
-- Logs operacionais usam apenas `event`, `delivery_id`, `courier_id`, `from_status`, `to_status` e `result`; nao incluem payload, endereco, observacao, token, header ou email.
+- Logs operacionais usam apenas `event`, `delivery_id`, `from_status`, `to_status` e `result`; nao incluem `courier_id`, payload, endereco, observacao, token, header ou email.
 - Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `COURIER_PROFILE_REQUIRED`, `COURIER_OFFLINE`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `INVALID_DELIVERY_TRANSITION`, `DELIVERY_STATUS_UPDATE_FAILED`.
 
 Resposta:

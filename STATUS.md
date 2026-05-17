@@ -68,6 +68,7 @@
 - [x] Planejamento de pagamentos ajustado em 2026-05-17: nao havera pagamento integrado na plataforma; o escopo correto e apenas confirmacao administrativa simples de pagamento externo para logistas/motoboys, usando a tabela `payments` como controle interno.
 - [x] M-06 Core Flow implementado e validado localmente no backend: `GET /api/deliveries/:id` para `logista` ativo, com `store_id` derivado da sessao, query vazia strict, filtro server-side por `id` + `store_id`, `DELIVERY_NOT_FOUND` para inexistente/outra loja e resposta sanitizada sem `store_id`, `courier_id`, PII de motoboy, documentos, Storage, tokens ou headers. Sem SQL/migration/RLS/grants/policies, sem realtime/push/polling/cancelamento/cron. Backend `typecheck`, `test` (133), `lint`, `build`, `git diff --check`, `node --check scripts/smoke-auth-rls.mjs` e smoke autenticado local M-06 passaram com cleanup completo.
 - [x] M-06 validada pos-deploy em producao: backend `27987f0b54b6747c6dac5a9f5134f4f2c80d8b3e` e frontend `20ab39710367bfcb9565246daef292f275e3c370` publicados com Vercel `success`; smoke publico confirmou `GET /api/health` -> `200`, `GET /api/deliveries/:id` sem token -> `401 AUTH_REQUIRED` e `/loja/entregas/<uuid>` -> `200`; smoke autenticado validou loja criando entrega ficticia, motoboy aceitando e avancando para `em_transito`, loja dona abrindo detalhe com timeline real e resposta sanitizada, outra loja recebendo `DELIVERY_NOT_FOUND`, query proibida/UUID invalido com `VALIDATION_ERROR` e cleanup completo.
+- [x] Hardening pos-M-06 implementado localmente: `POST /api/deliveries` agora retorna o shape sanitizado da loja sem `store_id`/`courier_id`, `POST /api/deliveries/:id/accept` deixou de expor `courier_id` ao client, e logs JSON de aceite/status mantem `delivery_id`, evento, resultado e transicoes sem `courier_id`, PII, tokens, headers ou payload. Sem SQL/migration/RLS/grants/policies e sem alterar realtime/push/polling/cancelamento/cron.
 
 ## Bloqueios
 
@@ -82,6 +83,6 @@
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (inclui M-06; backend 133 testes, frontend 62 testes)
+**Testes:** passando no backend e frontend (inclui hardening pos-M-06; backend 133 testes, frontend 63 testes)
 **Deploy:** frontend e backend publicados em Vercel
 **Riscos abertos:** 4
