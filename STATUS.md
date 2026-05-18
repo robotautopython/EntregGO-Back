@@ -3,7 +3,7 @@
 ## Estado Atual
 
 **Fase:** fundacao/auth-operacao
-**Ultima atualizacao:** 2026-05-17
+**Ultima atualizacao:** 2026-05-18
 **Atualizado por:** Codex/Camisa10
 
 ## Em Andamento
@@ -14,7 +14,7 @@
 
 - [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento ou dados pessoais novos do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
-- [ ] Planejar a proxima fatia pequena somente leitura com Cetico, SecurityValidator e PerformanceValidator conforme risco.
+- [ ] Fechar operacionalmente a M-09C: commit, push, deploy Vercel e smoke publico/autenticado API com cleanup completo.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
 ## Concluido
@@ -85,6 +85,7 @@
 - [x] M-09A detalhe administrativo somente leitura de entrega publicada e validada em producao: backend `4260d69775f9533783a0b45b3167db37d6423601` adicionou `GET /api/admin/deliveries/:id` para admin ativo, params UUID, query vazia strict, filtro por PK `id`, embed `stores(name,address)`, resposta reutilizando o shape sanitizado da M-07 e sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, dados de motoboy, documentos, Storage, tokens ou headers. Smoke pos-deploy confirmou `/api/health` 200, rota sem token 401, inexistente `DELIVERY_NOT_FOUND`, query proibida `VALIDATION_ERROR`, nao-admin `FORBIDDEN_ROLE`, detalhe real sanitizado e cleanup completo.
 - [x] M-09B backend implementada e validada localmente: `GET /api/admin/users/:id/deliveries` lista entregas por usuario de dominio para admin ativo, somente leitura, com query strict (`page`, `limit<=50`, `status`), isolamento por `stores.user_id`/`couriers.user_id`, alvo `admin` com vazio honesto, resposta sanitizada M-07/M-09A e sem SQL/migration. Gates Cetico, ImpactValidator, SecurityValidator e PerformanceValidator aprovaram com ressalvas incorporadas. Backend `typecheck`, `test` (205), `lint`, `build` e `git diff --check` passaram.
 - [x] M-09B backend publicado e validado em producao: commit funcional `30b454f1de93254f9ca46ec9073bbf6cecea2c73`, consumido pelo frontend `59c432d5fb2d1540a4bf44edd226df369293e06b`; Vercel `success`; smoke publico confirmou `/api/health` `200` e rota sem token `401 AUTH_REQUIRED`; smoke autenticado confirmou logista/motoboy com e sem `status`, alvo admin vazio honesto, query proibida com `VALIDATION_ERROR`, nao-admin com `FORBIDDEN_ROLE`, payload sanitizado e cleanup completo.
+- [x] M-09C backend implementada e validada localmente: `GET /api/admin/users/:id/payments` lista pagamentos administrativos por usuario para admin ativo, somente leitura, usando path param e query strict (`page`, `limit<=50`, `paid` opcional), alvo `admin` com vazio honesto, resposta sanitizada sem objeto `user`, sem `user_id`, sem `marked_by` e sem campos financeiros. Sem SQL/migration. Gates Cetico, ImpactValidator, SecurityValidator e PerformanceValidator aprovaram com ressalvas incorporadas. Backend `typecheck`, `test` (225), `lint`, `build` e `git diff --check` passaram.
 
 ## Bloqueios
 
@@ -99,6 +100,6 @@
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (M-09B backend: 205 testes; frontend correlato: 93 testes)
+**Testes:** passando no backend e frontend (M-09C backend: 225 testes; frontend correlato: 97 testes)
 **Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first, M-08 UI, M-09A e M-09B validadas em producao
 **Riscos abertos:** 4

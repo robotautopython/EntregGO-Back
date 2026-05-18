@@ -84,6 +84,7 @@ Todas as rotas admin exigem Bearer token de usuario autenticado, role `admin` e 
 - `GET /api/admin/deliveries`
 - `GET /api/admin/deliveries/:id`
 - `GET /api/admin/users/:id/deliveries`
+- `GET /api/admin/users/:id/payments`
 - `GET /api/admin/payments`
 - `PATCH /api/admin/payments/:id/mark-paid`
 - `PATCH /api/admin/users/:id/approve`
@@ -322,6 +323,71 @@ Resposta para usuario alvo `role=admin`:
 ```
 
 Fora deste contrato: cancelamento, alteracao de status, dados pessoais do motoboy, `courier_id`, `store_id`, `user_id`, `auth_id`, email, `owner_name`, `full_name`, documentos, Storage URLs, busca textual, filtro por data, dashboard, realtime, push, polling automatico, cron, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago.
+
+### `GET /api/admin/users/:id/payments`
+
+Lista controles internos de pagamento externo relacionados a um usuario de dominio em modo administrativo somente leitura. Exige `Authorization: Bearer <access_token>`, usuario autenticado com `role=admin` e `status=ativo`.
+
+Params:
+
+- `id`: UUID do usuario de dominio.
+
+Query params (schema strict):
+
+- `page`: inteiro, minimo 1, default 1.
+- `limit`: inteiro, minimo 1, maximo 50, default 10.
+- `paid`: opcional, `true|false`. Quando omitido, retorna todos.
+- Qualquer outro parametro, incluindo `user_id`, `referenceMonth`, `role`, `userStatus`, `status`, `email`, `amount`, `paymentMethod`, `pix`, `card`, `receipt` ou `marked_by`, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O endpoint usa service role apenas no backend e retorna uma whitelist fixa.
+- O usuario alvo e buscado por `users.id` com select minimo (`id,role`).
+- Para `role=admin`, retorna lista vazia honesta com `pagination.total=0`, sem consultar `payments`.
+- Para `role=logista` ou `role=motoboy`, o backend filtra `payments.user_id=<id>` server-side.
+- A lista e paginada com `count: exact` no MVP e limite maximo 50.
+- Ordem fixa: `reference_month desc`, `due_date asc`, `id asc`.
+- Nao ha SQL/migration nesta fatia; a tabela `payments`, a constraint unica `(user_id, reference_month)` e o indice M-08 ja existem.
+- A resposta nunca inclui `user_id`, objeto `user`, `auth_id`, email, `owner_name`, `full_name`, `marked_by`, `approved_by`, documentos, Storage URLs, tokens, cookies, headers, service role, valor financeiro, metodo de pagamento, gateway id, PIX, cartao, boleto, comprovante, dados bancarios, repasse ou nota fiscal.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `VALIDATION_ERROR`, `USER_NOT_FOUND`, `ADMIN_USER_PAYMENTS_LIST_FAILED`.
+
+Resposta para logista/motoboy:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "reference_month": "2026-05",
+        "due_date": "2026-05-31",
+        "paid": false,
+        "paid_at": null,
+        "created_at": "2026-05-17T12:00:00.000Z",
+        "updated_at": "2026-05-17T12:00:00.000Z"
+      }
+    ],
+    "pagination": { "page": 1, "limit": 10, "total": 1 }
+  },
+  "message": "Pagamentos administrativos do usuario encontrados"
+}
+```
+
+Resposta para usuario alvo `role=admin`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [],
+    "pagination": { "page": 1, "limit": 10, "total": 0 }
+  },
+  "message": "Pagamentos administrativos do usuario encontrados"
+}
+```
+
+Fora deste contrato: gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, dados bancarios, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros, desmarcar pago, busca textual, filtro por mes de referencia, dashboard, realtime, push, polling automatico e cron.
 
 ### `GET /api/admin/payments`
 

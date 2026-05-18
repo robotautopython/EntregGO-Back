@@ -18,6 +18,7 @@ import type {
   AdminListDeliveriesQuery,
   AdminListPaymentsQuery,
   AdminListUserDeliveriesQuery,
+  AdminListUserPaymentsQuery,
   AdminListUsersQuery,
 } from '../validators/admin.validators.js';
 
@@ -31,11 +32,12 @@ const adminStoreProfileSelect =
   'id,user_id,name,owner_name,address,description,created_at,updated_at';
 const adminCourierProfileSelect = 'id,user_id,full_name,is_online,created_at,updated_at';
 const adminInsightsPendingUserSelect = 'id,role,status,created_at';
-const adminUserDeliveriesTargetUserSelect = 'id,role';
+const adminUserTargetSelect = 'id,role';
 const adminDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)';
 const adminPaymentListSelect =
   'id,reference_month,due_date,paid,paid_at,created_at,updated_at,users!payments_user_id_fkey!inner(role,status,stores(name))';
+const adminUserPaymentListSelect = 'id,reference_month,due_date,paid,paid_at,created_at,updated_at';
 const userRoles = ['admin', 'logista', 'motoboy'] as const satisfies readonly UserRole[];
 const userStatuses = ['pendente', 'ativo', 'bloqueado'] as const satisfies readonly UserStatus[];
 const latestPendingUsersLimit = 5;
@@ -101,7 +103,7 @@ interface AdminPaymentStoreSummary {
   name: string;
 }
 
-interface AdminUserDeliveriesTargetUser {
+interface AdminUserTarget {
   id: string;
   role: UserRole;
 }
@@ -150,6 +152,37 @@ export interface PaginatedAdminPayments {
     total: number;
   };
 }
+
+interface AdminUserPaymentRow {
+  id: string;
+  reference_month: string;
+  due_date: string;
+  paid: boolean;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AdminUserPaymentListItem = AdminUserPaymentRow;
+
+export interface PaginatedAdminUserPayments {
+  items: AdminUserPaymentListItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
+const toAdminUserPaymentListItem = (row: AdminUserPaymentRow): AdminUserPaymentListItem => ({
+  id: row.id,
+  reference_month: row.reference_month,
+  due_date: row.due_date,
+  paid: row.paid,
+  paid_at: row.paid_at,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+});
 
 const extractStoreName = (row: unknown): string | null => {
   if (!row || typeof row !== 'object') {
@@ -345,15 +378,15 @@ export const getAdminDeliveryById = async (
   return toAdminDeliveryListItem(data);
 };
 
-const getAdminUserDeliveriesTargetUser = async (
+const getAdminTargetUser = async (
   userId: string,
   supabase: SupabaseClient,
-): Promise<AdminUserDeliveriesTargetUser> => {
+): Promise<AdminUserTarget> => {
   const { data, error } = await supabase
     .from('users')
-    .select(adminUserDeliveriesTargetUserSelect)
+    .select(adminUserTargetSelect)
     .eq('id', userId)
-    .single<AdminUserDeliveriesTargetUser>();
+    .single<AdminUserTarget>();
 
   if (error || !data) {
     throw new ApiError(404, 'USER_NOT_FOUND', 'Usuario nao encontrado');
@@ -400,7 +433,7 @@ export const listAdminUserDeliveries = async (
   input: AdminListUserDeliveriesQuery,
   supabase: SupabaseClient = getSupabaseAdminClient(),
 ): Promise<PaginatedAdminDeliveries> => {
-  const targetUser = await getAdminUserDeliveriesTargetUser(userId, supabase);
+  const targetUser = await getAdminTargetUser(userId, supabase);
 
   if (targetUser.role === 'admin') {
     return emptyAdminUserDeliveries(input);
@@ -442,6 +475,60 @@ export const listAdminUserDeliveries = async (
 
   return {
     items: ((data ?? []) as AdminDeliveryRow[]).map(toAdminDeliveryListItem),
+    pagination: {
+      page: input.page,
+      limit: input.limit,
+      total: count ?? 0,
+    },
+  };
+};
+
+const emptyAdminUserPayments = (input: AdminListUserPaymentsQuery): PaginatedAdminUserPayments => ({
+  items: [],
+  pagination: {
+    page: input.page,
+    limit: input.limit,
+    total: 0,
+  },
+});
+
+export const listAdminUserPayments = async (
+  userId: string,
+  input: AdminListUserPaymentsQuery,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<PaginatedAdminUserPayments> => {
+  const targetUser = await getAdminTargetUser(userId, supabase);
+
+  if (targetUser.role === 'admin') {
+    return emptyAdminUserPayments(input);
+  }
+
+  const offset = (input.page - 1) * input.limit;
+  let query = supabase
+    .from('payments')
+    .select(adminUserPaymentListSelect, { count: 'exact' })
+    .eq('user_id', targetUser.id);
+
+  if (typeof input.paid === 'boolean') {
+    query = query.eq('paid', input.paid);
+  }
+
+  const { data, error, count } = await query
+    .order('reference_month', { ascending: false })
+    .order('due_date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(offset, offset + input.limit - 1);
+
+  if (error) {
+    throw new ApiError(
+      500,
+      'ADMIN_USER_PAYMENTS_LIST_FAILED',
+      'Listagem de pagamentos do usuario falhou',
+    );
+  }
+
+  return {
+    items: ((data ?? []) as AdminUserPaymentRow[]).map(toAdminUserPaymentListItem),
     pagination: {
       page: input.page,
       limit: input.limit,

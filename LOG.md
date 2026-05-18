@@ -807,3 +807,16 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Smoke autenticado:** com dados ficticios temporarios, admin ativo consultou entregas de logista com e sem entrega atribuida, consultou entregas de motoboy com e sem `status=aceita`, alvo admin retornou `items=[]` e `total=0`, query proibida `user_id` retornou `VALIDATION_ERROR` e logista recebeu `FORBIDDEN_ROLE`. Payloads ficaram sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `full_name`, documentos, Storage URLs, token, header ou financeiro.
 
 **Cleanup:** recursos temporarios removidos; residuos finais `delivery=0`, `store=0`, `courier=0`, `domain=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+## 2026-05-18 - M-09C PAGAMENTOS ADMINISTRATIVOS POR USUARIO BACKEND LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada localmente a M-09C no backend: `GET /api/admin/users/:id/payments` foi adicionado ao `adminRouter`, antes de `/users/:id`, protegido pelos guards admin existentes. A rota usa `params.id` UUID de usuario de dominio e query strict (`page`, `limit<=50`, `paid` opcional; omitido retorna todos). O service busca o usuario alvo com select minimo `id,role`; para alvo `admin`, retorna lista vazia honesta sem consultar `payments`; para `logista`/`motoboy`, consulta `payments` com `user_id` derivado no servidor, `count: exact`, `range` e ordenacao `reference_month desc, due_date asc, id asc`. A resposta retorna somente `id`, `reference_month`, `due_date`, `paid`, `paid_at`, `created_at` e `updated_at`.
+**Arquivos modificados:** `src/routes/admin.routes.ts`, `src/controllers/admin.controller.ts`, `src/services/admin.service.ts`, `src/validators/admin.validators.ts`, `tests/admin-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** Aba `Pagamento` do `UserDetailDrawer` no repositorio frontend consome este endpoint via REST/Bearer token.
+**Agentes/gates utilizados:** Camisa10, Cetico, ImpactValidator, SecurityValidator, PerformanceValidator, Documentador
+**Status:** implementado e validado localmente; commit, push, deploy e smoke pos-deploy pendentes
+
+**Ressalvas incorporadas:** Nao houve SQL/migration. A rota nao usa nem documenta `GET /api/admin/payments?user_id=...`; query `user_id`, `referenceMonth`, `role`, `userStatus`, `status`, `email`, `amount`, `paymentMethod`, `pix`, `card`, `receipt` e `marked_by` gera `VALIDATION_ERROR`. A resposta nao inclui `user_id`, objeto `user`, `auth_id`, email, `owner_name`, `full_name`, `marked_by`, valor financeiro, metodo, gateway, PIX, cartao, boleto, comprovante, dados bancarios, repasse, nota fiscal, token, header ou service role.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 225 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.

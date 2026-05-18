@@ -37,6 +37,17 @@ export const adminListPaymentsQuerySchema = z
   })
   .strict();
 
+export const adminListUserPaymentsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(10),
+    paid: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
+  })
+  .strict();
+
 export const adminInsightsQuerySchema = z.object({}).strict();
 export const emptyAdminActionQuerySchema = z.object({}).strict();
 export const emptyAdminActionBodySchema = z.object({}).strict();
@@ -57,6 +68,7 @@ export type AdminDeliveryIdParams = z.infer<typeof adminDeliveryIdParamsSchema>;
 export type AdminListDeliveriesQuery = z.infer<typeof adminListDeliveriesQuerySchema>;
 export type AdminListPaymentsQuery = z.infer<typeof adminListPaymentsQuerySchema>;
 export type AdminListUserDeliveriesQuery = z.infer<typeof adminListUserDeliveriesQuerySchema>;
+export type AdminListUserPaymentsQuery = z.infer<typeof adminListUserPaymentsQuerySchema>;
 export type AdminListUsersQuery = z.infer<typeof adminListUsersQuerySchema>;
 export type PaymentIdParams = z.infer<typeof paymentIdParamsSchema>;
 export type UserIdParams = z.infer<typeof userIdParamsSchema>;
