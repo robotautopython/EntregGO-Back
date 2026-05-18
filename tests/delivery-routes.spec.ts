@@ -102,6 +102,10 @@ const courierProfile = {
   is_online: true,
 };
 
+const courierSummary = {
+  full_name: 'Motoboy Teste',
+};
+
 const offlineCourierProfile = {
   ...courierProfile,
   id: '99999999-9999-4999-8999-aaaaaaaaaaaa',
@@ -517,6 +521,7 @@ describe('M-04A delivery routes', () => {
         delivered_at: deliveryRequest.delivered_at,
         updated_at: deliveryRequest.updated_at,
         store: storeSummary,
+        courier: null,
       },
       message: 'Solicitacao de entrega criada',
     });
@@ -532,6 +537,10 @@ describe('M-04A delivery routes', () => {
     expect(selectArg).not.toContain('store_id');
     expect(selectArg).not.toContain('courier_id');
     expect(selectArg).toContain('stores(name,address)');
+    expect(selectArg).toContain('couriers(full_name)');
+    expect(selectArg).not.toMatch(
+      /couriers\(\*|couriers\(id|user_id|is_online|bike_photo_url|license_photo_url/i,
+    );
     expect(response.body.data).not.toHaveProperty('email');
     expect(response.body.data).not.toHaveProperty('store_id');
     expect(response.body.data).not.toHaveProperty('courier_id');
@@ -540,9 +549,10 @@ describe('M-04A delivery routes', () => {
     expect(response.body.data).not.toHaveProperty('logo_url');
     expect(response.body.data).not.toHaveProperty('description');
     expect(JSON.stringify(response.body.data)).not.toMatch(
-      /store_id|courier_id|user_id|auth_id|email|owner_name|logo_url|description|Authorization|Bearer|service_role|token/i,
+      /store_id|courier_id|user_id|auth_id|email|owner_name|logo_url|description|is_online|bike_photo_url|license_photo_url|Authorization|Bearer|service_role|token/i,
     );
     expect(response.body.data.status).toBe('aguardando');
+    expect(response.body.data.courier).toBeNull();
     expect(realtimeBroadcastMock.broadcastDeliveryCreated).toHaveBeenCalledWith(
       expect.objectContaining({
         id: deliveryRequest.id,
@@ -954,7 +964,7 @@ describe('M-06 get store delivery detail', () => {
 
   it('returns a delivery only when it belongs to the authenticated store', async () => {
     const detailTable = createDeliveryDetailTable({
-      data: { ...listRowEntregue, stores: storeSummary },
+      data: { ...listRowEntregue, stores: storeSummary, couriers: courierSummary },
       error: null,
     });
     mockAuthenticatedUser(activeStoreUser, {
@@ -972,6 +982,7 @@ describe('M-06 get store delivery detail', () => {
       data: {
         ...listRowEntregue,
         store: storeSummary,
+        courier: courierSummary,
       },
       message: 'Entrega encontrada',
     });
@@ -980,6 +991,10 @@ describe('M-06 get store delivery detail', () => {
     expect(selectArg).not.toContain('store_id');
     expect(selectArg).not.toContain('courier_id');
     expect(selectArg).toContain('stores(name,address)');
+    expect(selectArg).toContain('couriers(full_name)');
+    expect(selectArg).not.toMatch(
+      /couriers\(\*|couriers\(id|user_id|is_online|bike_photo_url|license_photo_url/i,
+    );
     expect(detailTable.eq).toHaveBeenCalledWith('id', listRowEntregue.id);
     expect(detailTable.eq).toHaveBeenCalledWith('store_id', storeProfile.id);
     expect(response.body.data).not.toHaveProperty('store_id');
@@ -991,7 +1006,37 @@ describe('M-06 get store delivery detail', () => {
     expect(response.body.data).not.toHaveProperty('bike_photo_url');
     expect(response.body.data).not.toHaveProperty('license_photo_url');
     expect(JSON.stringify(response.body.data)).not.toMatch(
-      /store_id|courier_id|user_id|auth_id|email|owner_name|logo_url|description|Authorization|Bearer|service_role|token/i,
+      /store_id|courier_id|user_id|auth_id|email|phone|owner_name|logo_url|description|is_online|bike_photo_url|license_photo_url|Authorization|Bearer|service_role|token/i,
+    );
+  });
+
+  it('returns courier null for a store delivery that has not been accepted', async () => {
+    const detailTable = createDeliveryDetailTable({
+      data: { ...listRowAguardando, stores: storeSummary, couriers: courierSummary },
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: createSelectSingleTable({ data: storeProfile, error: null }),
+      delivery_requests: detailTable,
+    });
+
+    const response = await request(app)
+      .get(`/api/deliveries/${listRowAguardando.id}`)
+      .set('Authorization', 'Bearer store-token')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      success: true,
+      data: {
+        id: listRowAguardando.id,
+        status: 'aguardando',
+        accepted_at: null,
+        store: storeSummary,
+        courier: null,
+      },
+    });
+    expect(JSON.stringify(response.body.data)).not.toMatch(
+      /courier_id|user_id|auth_id|email|phone|is_online|bike_photo_url|license_photo_url|Authorization|Bearer|service_role|token/i,
     );
   });
 

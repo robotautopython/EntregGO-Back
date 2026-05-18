@@ -35,6 +35,9 @@ const delivery = {
   courier_id: 'courier-private',
   destination_address: 'Rua privada',
   notes: 'Observacao privada',
+  couriers: {
+    full_name: 'Motoboy Teste',
+  },
 };
 
 describe('realtime broadcast service', () => {
@@ -124,7 +127,7 @@ describe('realtime broadcast service', () => {
       updatedAt: delivery.updated_at,
     });
     expect(JSON.stringify(sentPayload)).not.toMatch(
-      /store_id|courier_id|user_id|auth_id|email|phone|destination_address|notes|service-role/i,
+      /store_id|courier_id|user_id|auth_id|email|phone|full_name|destination_address|notes|service-role/i,
     );
 
     const logPayload = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);

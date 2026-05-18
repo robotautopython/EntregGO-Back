@@ -4,6 +4,18 @@
 
 Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em DECISIONS; aprendizados vao em LEARNINGS.
 
+## 2026-05-18 - M-12B BACKEND MOTOBOY ACEITO LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada e validada localmente a fatia backend da M-12B. `POST /api/deliveries` e `GET /api/deliveries/:id` agora retornam `courier: null | { full_name }` para a loja dona, usando `couriers(full_name)` no select de detalhe e mapper por whitelist condicionado a `accepted_at`. Antes do aceite, `courier` permanece `null` mesmo se a relacao vier preenchida por mock ou dado inesperado.
+**Status:** fechado localmente; commit, push, deploy e smoke pos-deploy pendentes
+
+**Arquivos principais:** `src/services/delivery.service.ts`, `tests/delivery-routes.spec.ts`, `tests/realtime-broadcast.service.spec.ts`, `CONTRACTS.md`.
+
+**Validacoes locais:** `npm run typecheck`, `npm test -- tests/delivery-routes.spec.ts tests/realtime-broadcast.service.spec.ts` (118 testes), `npm test` (9 arquivos, 240 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
+
+**Seguranca e escopo:** isolamento da loja segue por `store_id` derivado da sessao. A resposta continua sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, telefone, `owner_name`, `logo_url`, `description`, `is_online`, documentos/fotos, Storage, tokens, headers, Authorization, Bearer ou service role; a unica excecao nova e `courier.full_name` para a loja dona apos aceite. O teste de broadcast confirma que `full_name` nao entra no payload realtime. Sem SQL/migration/RLS/grant/env, canal realtime novo, Web Push/PWA, cron, GPS, pagamento, Storage ou documentos.
+
 ## 2026-05-18 - HOTFIX M-12A BACKEND FECHADO EM PRODUCAO
 
 **Fase:** fundacao/auth-operacao

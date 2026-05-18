@@ -637,7 +637,7 @@ Regras:
 - `destinationAddress` e opcional; quando ausente, vazio ou somente whitespace, e gravado como `null`.
 - `destinationAddress` nao vazio recebe trim e limite de tamanho.
 - `notes` e opcional; quando ausente, vazio ou somente whitespace, e gravado como `null`.
-- A entrega nasce com `status=aguardando`, `courier_id=null` e `expires_at` definido pelo default do banco.
+- A entrega nasce com `status=aguardando`, `courier_id=null`, `courier=null` e `expires_at` definido pelo default do banco.
 - Escritas client-side em `delivery_requests` seguem negadas por RLS/grants; o backend usa service role.
 - A resposta inclui apenas o resumo sanitizado da loja dona (`store.name` e `store.address`), derivado do perfil autenticado.
 - A resposta e sanitizada e nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, dados de motoboy, documentos, Storage, tokens, Authorization, Bearer, service role ou headers.
@@ -662,7 +662,8 @@ Resposta:
     "store": {
       "name": "Nome da loja",
       "address": "Endereco operacional da loja"
-    }
+    },
+    "courier": null
   },
   "message": "Solicitacao de entrega criada"
 }
@@ -737,8 +738,9 @@ Regras:
 - `store_id` e sempre derivado do perfil `stores` do usuario autenticado; nunca vem do request.
 - Como o backend usa service role (RLS nao se aplica server-side), o isolamento multi-tenant e garantido pelo filtro server-side `id=<id>` e `store_id=<loja da sessao>`.
 - Entrega inexistente ou pertencente a outra loja retorna `DELIVERY_NOT_FOUND`.
-- A resposta inclui apenas o resumo sanitizado da loja dona (`store.name` e `store.address`), vindo do embed `stores(name,address)` apos o filtro `store_id=<loja da sessao>`.
-- A resposta nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, dados pessoais do motoboy, documentos, Storage, tokens, Authorization, Bearer, service role ou headers.
+- A resposta inclui o resumo sanitizado da loja dona (`store.name` e `store.address`), vindo do embed `stores(name,address)` apos o filtro `store_id=<loja da sessao>`.
+- Apos aceite, a resposta pode incluir somente o resumo minimo do motoboy aceito (`courier.full_name`), vindo do embed `couriers(full_name)`. Antes do aceite, `courier` e sempre `null`.
+- A resposta nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, documentos, Storage, tokens, Authorization, Bearer, service role ou headers. Do motoboy, a unica excecao permitida neste contrato e `courier.full_name` para a loja dona da entrega apos aceite.
 - Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `STORE_PROFILE_REQUIRED`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `DELIVERY_GET_FAILED`.
 
 Resposta:
@@ -761,13 +763,16 @@ Resposta:
     "store": {
       "name": "Nome da loja",
       "address": "Endereco operacional da loja"
+    },
+    "courier": {
+      "full_name": "Nome do motoboy"
     }
   },
   "message": "Entrega encontrada"
 }
 ```
 
-Fora desta fatia: realtime, push, polling automatico, cancelamento, expiracao automatica por cron, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio e dados pessoais do motoboy.
+Fora desta fatia: realtime novo, push, polling automatico, cancelamento, expiracao automatica por cron, historico admin, pagamento externo, documentos/Storage, GPS/mapa/raio e qualquer dado pessoal do motoboy alem de `courier.full_name` no detalhe da loja dona apos aceite.
 
 ## Entregas Fatia 1 - Motoboy
 

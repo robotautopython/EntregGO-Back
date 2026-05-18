@@ -20,7 +20,7 @@ const storeOwnershipSelect = 'id,user_id';
 const courierOwnershipSelect = 'id,user_id,is_online';
 const storeDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at';
-const storeDeliveryDetailSelect = `${storeDeliveryListSelect},stores(name,address)`;
+const storeDeliveryDetailSelect = `${storeDeliveryListSelect},stores(name,address),couriers(full_name)`;
 const courierAvailableDeliverySelect = 'id,status,created_at,expires_at,stores(name,address)';
 const courierAcceptedDeliverySelect =
   'id,status,accepted_at,created_at,expires_at,updated_at,stores(name,address)';
@@ -77,7 +77,12 @@ interface DeliveryStoreSummary {
   address: string;
 }
 
+interface DeliveryCourierSummary {
+  full_name: string;
+}
+
 type DeliveryStoreRelation = DeliveryStoreSummary | DeliveryStoreSummary[] | null | undefined;
+type DeliveryCourierRelation = DeliveryCourierSummary | DeliveryCourierSummary[] | null | undefined;
 
 interface CourierDeliveryRow {
   id: string;
@@ -89,6 +94,7 @@ interface CourierDeliveryRow {
 
 interface StoreDeliveryDetailRow extends StoreDeliveryListItem {
   stores?: DeliveryStoreRelation;
+  couriers?: DeliveryCourierRelation;
 }
 
 interface CourierAcceptedDeliveryRow extends CourierDeliveryRow {
@@ -130,6 +136,7 @@ export interface StoreDeliveryListItem {
 
 export interface StoreDeliveryDetail extends StoreDeliveryListItem {
   store: DeliveryStoreSummary;
+  courier: DeliveryCourierSummary | null;
 }
 
 export interface StoreDeliveryList {
@@ -274,6 +281,18 @@ const normalizeStoreSummary = (relation: DeliveryStoreRelation): DeliveryStoreSu
   };
 };
 
+const normalizeCourierSummary = (
+  relation: DeliveryCourierRelation,
+  acceptedAt: string | null,
+): DeliveryCourierSummary | null => {
+  if (!acceptedAt) return null;
+
+  const courier = Array.isArray(relation) ? relation[0] : relation;
+  const fullName = typeof courier?.full_name === 'string' ? courier.full_name.trim() : '';
+
+  return fullName ? { full_name: fullName } : null;
+};
+
 const dispatchRealtimeBroadcast = (task: () => Promise<void>) => {
   Promise.resolve(task()).catch(() => undefined);
 };
@@ -305,6 +324,7 @@ const toStoreDeliveryListItem = (row: StoreDeliveryListItem): StoreDeliveryListI
 const toStoreDeliveryDetail = (row: StoreDeliveryDetailRow): StoreDeliveryDetail => ({
   ...toStoreDeliveryListItem(row),
   store: normalizeStoreSummary(row.stores),
+  courier: normalizeCourierSummary(row.couriers, row.accepted_at),
 });
 
 const toCourierAcceptedDeliveryState = (
