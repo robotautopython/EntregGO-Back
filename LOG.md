@@ -4,6 +4,21 @@
 
 Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em DECISIONS; aprendizados vao em LEARNINGS.
 
+## 2026-05-18 - M-12B BACKEND FECHADO EM PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Fechamento operacional backend da M-12B concluido. Commit funcional `59a942863fa083974d4efad9497afbc4115734d8` foi publicado em `origin/main`, retornando `courier: null | { full_name }` para a loja dona em `POST /api/deliveries` e `GET /api/deliveries/:id`, com `courier=null` antes do aceite e `courier.full_name` apos aceite.
+**Frontend relacionado:** `/loja/nova-entrega` e `/loja/entregas/[id]` publicados no frontend `0dcda9ae33a410ca58c669708176c78a926c3870`.
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** `npm run typecheck`, `npm test` (240), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows.
+
+**Deploy e smoke publico:** `git ls-remote` confirmou `59a942863fa083974d4efad9497afbc4115734d8` em `refs/heads/main`; GitHub/Vercel retornou `success` e `Deployment has completed`. `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET /api/deliveries` e `GET /api/deliveries/<uuid>` sem token retornaram `401 AUTH_REQUIRED`.
+
+**Smoke autenticado:** com dados ficticios temporarios, a loja criou entrega e `POST /api/deliveries` retornou `courier=null`. Motoboy ativo online aceitou a entrega; `GET /api/deliveries/:id` para a loja dona retornou `courier.full_name` e `accepted_at`. Payloads ficaram sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, telefone, `is_online`, documentos/fotos, tokens, headers, Authorization, Bearer ou service role.
+
+**Cleanup e escopo:** cleanup final `delivery=0`, `store=0`, `courier=0`, `domain=0`, `auth=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso. Sem SQL/migration/RLS/grant/env, canal realtime novo, Web Push/PWA, cron, GPS, pagamento, Storage ou documentos.
+
 ## 2026-05-18 - M-12B BACKEND MOTOBOY ACEITO LOCAL
 
 **Fase:** fundacao/auth-operacao

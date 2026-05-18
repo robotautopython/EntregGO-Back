@@ -12,7 +12,6 @@ Nenhuma tarefa backend em andamento apos o fechamento operacional do hotfix M-12
 
 ## Proximas Tarefas
 
-- [ ] Fechar operacionalmente a M-12B backend: commit, push, deploy Vercel e smoke pos-deploy.
 - [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento ou dados pessoais novos do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
 - [ ] Planejar a proxima fatia pequena somente leitura com gates antes de qualquer codigo.
@@ -95,6 +94,7 @@ Nenhuma tarefa backend em andamento apos o fechamento operacional do hotfix M-12
 - [x] Hotfix M-12A backend validado localmente: `POST /api/deliveries` e `GET /api/deliveries/:id` agora retornam `store: { name, address }` sanitizado por embed `stores(name,address)`, com `store_id` derivado da sessao e sem alterar `GET /api/deliveries` da loja. A resposta continua sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, dados de motoboy, documentos, Storage, tokens ou headers. Sem SQL/migration/RLS/grant/env. `npm run typecheck`, `npm test` (239), `npm run lint`, `npm run build` e `git diff --check` passaram; commit, push, deploy e smoke pos-deploy pendentes.
 - [x] Hotfix M-12A backend fechado em producao: commit funcional `6a78bc872bbf34eb9d6eedf664395d5eb8e313a1` publicado em `origin/main`, consumido pelo frontend `751957ee156ee762cb2f10a19cf5c00a350a7330`. GitHub/Vercel retornaram `success` e `Deployment has completed`; smoke publico confirmou `/api/health` `200` e rotas protegidas de entrega sem token `401 AUTH_REQUIRED`; smoke autenticado confirmou `POST /api/deliveries` e `GET /api/deliveries/:id` com `store.name/address`, sem IDs internos/campos proibidos, refetch REST apos realtime e cleanup `delivery=0 store=0 courier=0 domain=0 auth=0`.
 - [x] M-12B backend implementada e validada localmente: `POST /api/deliveries` e `GET /api/deliveries/:id` retornam `courier: null | { full_name }` para a loja dona, com embed `couriers(full_name)`, mapper por whitelist e `courier=null` antes do aceite. O filtro por `store_id` continua derivado da sessao. Realtime permanece sem payload ampliado e sem vazamento de `full_name`. Sem SQL/migration/RLS/grant/env. `npm run typecheck`, `npm test` (240), `npm run lint`, `npm run build` e `git diff --check` passaram; commit, push, deploy e smoke pos-deploy pendentes.
+- [x] M-12B backend publicado e validado em producao: commit funcional `59a942863fa083974d4efad9497afbc4115734d8` em `origin/main`; GitHub/Vercel `success` e `Deployment has completed`; smoke publico confirmou `/api/health` `200` e rotas protegidas sem token `401 AUTH_REQUIRED`; smoke autenticado confirmou `POST /api/deliveries` com `courier=null`, aceite por motoboy ativo online, `GET /api/deliveries/:id` com `courier.full_name` e `accepted_at` para a loja dona, payload sem campos proibidos e cleanup `delivery=0 store=0 courier=0 domain=0 auth=0`.
 
 ## Bloqueios
 
@@ -110,5 +110,5 @@ Nenhuma tarefa backend em andamento apos o fechamento operacional do hotfix M-12
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
 **Testes:** passando no backend (240 testes, incluindo M-12B backend)
-**Deploy:** backend publicado em Vercel ate o hotfix M-12A cross-stack; commit funcional `6a78bc872bbf34eb9d6eedf664395d5eb8e313a1` com GitHub/Vercel `success` e smoke pos-deploy aprovado. M-12B ainda nao foi publicada.
+**Deploy:** backend publicado em Vercel ate a M-12B; commit funcional `59a942863fa083974d4efad9497afbc4115734d8` com GitHub/Vercel `success` e smoke pos-deploy aprovado.
 **Riscos abertos:** 4
