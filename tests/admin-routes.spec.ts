@@ -5,6 +5,7 @@ import type {
   AdminCourierProfile,
   AdminInsightsPendingUser,
   AdminStoreProfile,
+  DeliveryStatus,
   DomainUser,
   UserRole,
   UserStatus,
@@ -124,6 +125,7 @@ const createSelectTableByColumn = (results: Record<string, SupabaseResult>) => {
 
 type CountKey = `${UserRole}:${UserStatus}`;
 type PendingRole = AdminInsightsPendingUser['role'];
+type PaymentCountKey = 'paid' | 'pending';
 
 const countKey = (role: UserRole, status: UserStatus): CountKey => `${role}:${status}`;
 
@@ -197,6 +199,88 @@ const createAdminInsightsUsersTable = ({
   return {
     select,
   };
+};
+
+const createAdminInsightsDeliveryRequestsTable = ({
+  counts = {},
+  failCountFor,
+}: {
+  counts?: Partial<Record<DeliveryStatus, number>>;
+  failCountFor?: DeliveryStatus;
+} = {}) => {
+  const select = vi.fn((columns: string, options?: { count?: string; head?: boolean }) => {
+    if (columns === 'id' && options?.count === 'exact' && options.head === true) {
+      return {
+        eq: vi.fn((_statusColumn: string, status: DeliveryStatus) =>
+          Promise.resolve({
+            data: null,
+            count: counts[status] ?? 0,
+            error: failCountFor === status ? { message: 'delivery count failed' } : null,
+          }),
+        ),
+      };
+    }
+
+    return {
+      eq: vi.fn(),
+    };
+  });
+
+  return {
+    select,
+  };
+};
+
+const createAdminInsightsPaymentsTable = ({
+  counts = {},
+  failCountFor,
+}: {
+  counts?: Partial<Record<PaymentCountKey, number>>;
+  failCountFor?: PaymentCountKey;
+} = {}) => {
+  const select = vi.fn((columns: string, options?: { count?: string; head?: boolean }) => {
+    if (columns === 'id' && options?.count === 'exact' && options.head === true) {
+      return {
+        eq: vi.fn((_paidColumn: string, paid: boolean) => {
+          const key: PaymentCountKey = paid ? 'paid' : 'pending';
+
+          return Promise.resolve({
+            data: null,
+            count: counts[key] ?? 0,
+            error: failCountFor === key ? { message: 'payment count failed' } : null,
+          });
+        }),
+      };
+    }
+
+    return {
+      eq: vi.fn(),
+    };
+  });
+
+  return {
+    select,
+  };
+};
+
+const mockAdminInsightsTables = ({
+  usersTable = createAdminInsightsUsersTable({}),
+  deliveryRequestsTable = createAdminInsightsDeliveryRequestsTable(),
+  paymentsTable = createAdminInsightsPaymentsTable(),
+}: {
+  usersTable?: ReturnType<typeof createAdminInsightsUsersTable>;
+  deliveryRequestsTable?: ReturnType<typeof createAdminInsightsDeliveryRequestsTable>;
+  paymentsTable?: ReturnType<typeof createAdminInsightsPaymentsTable>;
+} = {}) => {
+  supabaseMock.from.mockImplementation((table: string) => {
+    if (table === 'users') return usersTable;
+    if (table === 'delivery_requests') return deliveryRequestsTable;
+    if (table === 'payments') return paymentsTable;
+
+    return {
+      select: vi.fn(),
+    };
+  });
 };
 
 const mockAuthUser = (authUserId = 'auth-admin') => {
@@ -291,7 +375,24 @@ describe('admin insights route', () => {
         motoboy: [olderPending],
       },
     });
-    supabaseMock.from.mockReturnValue(usersTable);
+    const deliveryRequestsTable = createAdminInsightsDeliveryRequestsTable({
+      counts: {
+        aguardando: 4,
+        aceita: 3,
+        coletada: 2,
+        em_transito: 1,
+        entregue: 9,
+        expirada: 5,
+        cancelada: 6,
+      },
+    });
+    const paymentsTable = createAdminInsightsPaymentsTable({
+      counts: {
+        paid: 7,
+        pending: 11,
+      },
+    });
+    mockAdminInsightsTables({ usersTable, deliveryRequestsTable, paymentsTable });
 
     const response = await request(app)
       .get('/api/admin/insights')
@@ -322,6 +423,19 @@ describe('admin insights route', () => {
           stores: 10,
           couriers: 8,
         },
+        delivery_counts_by_status: {
+          aguardando: 4,
+          aceita: 3,
+          coletada: 2,
+          em_transito: 1,
+          entregue: 9,
+          expirada: 5,
+          cancelada: 6,
+        },
+        payment_counts: {
+          paid: 7,
+          pending: 11,
+        },
         latest_pending_users: {
           limit: 5,
           items: [newestPending, olderPending],
@@ -330,7 +444,12 @@ describe('admin insights route', () => {
       message: 'Insights administrativos gerados',
     });
     expect(Date.parse(response.body.data.generated_at)).not.toBeNaN();
-    expect(supabaseMock.from.mock.calls.every(([table]) => table === 'users')).toBe(true);
+    const queriedTables = supabaseMock.from.mock.calls.map(([table]) => table);
+    expect(queriedTables).toContain('users');
+    expect(queriedTables).toContain('delivery_requests');
+    expect(queriedTables).toContain('payments');
+    expect(queriedTables).not.toContain('stores');
+    expect(queriedTables).not.toContain('couriers');
 
     const serializedData = JSON.stringify(response.body.data);
     expect(serializedData).not.toContain('email');
@@ -342,6 +461,41 @@ describe('admin insights route', () => {
     expect(serializedData).not.toContain('logo_url');
     expect(serializedData).not.toContain('bike_photo_url');
     expect(serializedData).not.toContain('license_photo_url');
+    expect(serializedData).not.toContain('store_id');
+    expect(serializedData).not.toContain('courier_id');
+    expect(serializedData).not.toContain('user_id');
+    expect(serializedData).not.toContain('reference_month');
+    expect(serializedData).not.toContain('due_date');
+    expect(serializedData).not.toContain('paid_at');
+    expect(serializedData).not.toContain('marked_by');
+    expect(serializedData).not.toContain('amount');
+    expect(serializedData).not.toContain('pix');
+    expect(serializedData).not.toContain('card');
+    expect(serializedData).not.toContain('receipt');
+  });
+
+  it('returns zero defaults for delivery and payment counts without rows', async () => {
+    mockAuthUser();
+    mockAdminInsightsTables();
+
+    const response = await request(app)
+      .get('/api/admin/insights')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(response.body.data.delivery_counts_by_status).toEqual({
+      aguardando: 0,
+      aceita: 0,
+      coletada: 0,
+      em_transito: 0,
+      entregue: 0,
+      expirada: 0,
+      cancelada: 0,
+    });
+    expect(response.body.data.payment_counts).toEqual({
+      paid: 0,
+      pending: 0,
+    });
   });
 
   it('limits latest pending users to five after merging role-specific queries', async () => {
@@ -354,14 +508,14 @@ describe('admin insights route', () => {
       created_at: `2026-05-15T1${index}:00:00.000Z`,
     })) satisfies AdminInsightsPendingUser[];
 
-    supabaseMock.from.mockReturnValue(
-      createAdminInsightsUsersTable({
+    mockAdminInsightsTables({
+      usersTable: createAdminInsightsUsersTable({
         pendingUsers: {
           logista: pendingUsers.filter((user) => user.role === 'logista'),
           motoboy: pendingUsers.filter((user) => user.role === 'motoboy'),
         },
       }),
-    );
+    });
 
     const response = await request(app)
       .get('/api/admin/insights')
@@ -381,6 +535,50 @@ describe('admin insights route', () => {
         failCountFor: countKey('logista', 'ativo'),
       }),
     );
+
+    const response = await request(app)
+      .get('/api/admin/insights')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'ADMIN_INSIGHTS_FAILED',
+        message: 'Insights administrativos falharam',
+      },
+    });
+  });
+
+  it('returns a standardized error when an insights delivery count fails', async () => {
+    mockAuthUser();
+    mockAdminInsightsTables({
+      deliveryRequestsTable: createAdminInsightsDeliveryRequestsTable({
+        failCountFor: 'entregue',
+      }),
+    });
+
+    const response = await request(app)
+      .get('/api/admin/insights')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'ADMIN_INSIGHTS_FAILED',
+        message: 'Insights administrativos falharam',
+      },
+    });
+  });
+
+  it('returns a standardized error when an insights payment count fails', async () => {
+    mockAuthUser();
+    mockAdminInsightsTables({
+      paymentsTable: createAdminInsightsPaymentsTable({
+        failCountFor: 'pending',
+      }),
+    });
 
     const response = await request(app)
       .get('/api/admin/insights')

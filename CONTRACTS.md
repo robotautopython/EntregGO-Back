@@ -136,9 +136,9 @@ Listagens sao paginadas com limite maximo de `100`. Acoes admin alteram somente 
 
 ### `GET /api/admin/insights`
 
-Retorna um dashboard administrativo minimo, sem parametros no v1. O endpoint consulta apenas `public.users`, nao acessa perfis, entregas, controle de pagamento externo, Storage, Realtime, cache, cron ou dados mockados.
+Retorna um dashboard administrativo minimo, sem parametros no v1. O endpoint consulta `public.users`, `public.delivery_requests` e `public.payments` apenas para agregados fixos com `count`/`head:true`; nao acessa perfis, listas de entregas, listas de pagamentos, Storage, Realtime, cache, cron ou dados mockados.
 
-`active_accounts.stores` e `active_accounts.couriers` sao derivados de usuarios ativos por role (`logista/ativo` e `motoboy/ativo`). `latest_pending_users.items` e limitado a 5 apos merge de consultas limitadas por role.
+`active_accounts.stores` e `active_accounts.couriers` sao derivados de usuarios ativos por role (`logista/ativo` e `motoboy/ativo`). `latest_pending_users.items` e limitado a 5 apos merge de consultas limitadas por role. `delivery_counts_by_status` retorna todas as chaves do enum de entrega com default `0`. `payment_counts` retorna somente `{ paid, pending }`, onde `pending` e a contagem de registros com `paid=false`.
 
 Resposta:
 
@@ -168,6 +168,19 @@ Resposta:
       "stores": 10,
       "couriers": 8
     },
+    "delivery_counts_by_status": {
+      "aguardando": 4,
+      "aceita": 3,
+      "coletada": 2,
+      "em_transito": 1,
+      "entregue": 9,
+      "expirada": 5,
+      "cancelada": 6
+    },
+    "payment_counts": {
+      "paid": 7,
+      "pending": 11
+    },
     "latest_pending_users": {
       "limit": 5,
       "items": [
@@ -184,7 +197,7 @@ Resposta:
 }
 ```
 
-Campos de PII como `email`, `auth_id`, nomes, endereco, perfis, documentos e URLs de Storage nao fazem parte deste contrato.
+Campos de PII como `email`, `auth_id`, nomes, endereco, perfis, documentos e URLs de Storage nao fazem parte deste contrato. IDs de entregas/pagamentos, `store_id`, `courier_id`, `user_id`, mes de referencia, vencimento, auditoria de pagamento, valor financeiro, metodo, PIX, cartao, boleto, comprovante, gateway e dados bancarios tambem ficam fora do payload de insights.
 
 ### `GET /api/admin/deliveries`
 

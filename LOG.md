@@ -785,6 +785,19 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Agentes utilizados:** Camisa10, DeployObservability, Documentador
 **Status:** fechado em producao
 
+## 2026-05-18 - M-11A INSIGHTS ADMINISTRATIVOS BACKEND LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada localmente a parte backend da M-11A. `GET /api/admin/insights` manteve o contrato existente e adicionou `delivery_counts_by_status` para todos os status de `delivery_requests` e `payment_counts` com `{ paid, pending }` para `payments`. As contagens usam `select('id', { count: 'exact', head: true })`, sem query params novos e sem retornar listas ou IDs de entregas/pagamentos.
+**Arquivos modificados:** `src/types/domain.ts`, `src/services/admin.service.ts`, `tests/admin-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `/admin/insights` no repositorio frontend consome os campos novos via `getAdminInsights`.
+**Agentes/gates utilizados:** ImpactValidator, SecurityValidator, PerformanceValidator, TestEngineer, Cetico, Documentador
+**Status:** implementado e validado localmente; commit, push, deploy e smoke pos-deploy pendentes
+
+**Ressalvas incorporadas:** `adminInsightsQuerySchema` permanece strict e vazio. Nao houve SQL/migration. O endpoint nao acessa perfis, Storage, Realtime, cache, cron, listas de entregas ou listas de pagamentos. Resposta sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, nomes, enderecos, IDs de entregas/pagamentos, mes de referencia, vencimento, auditoria de pagamento, valor financeiro, metodo, PIX, cartao, boleto, comprovante, gateway, dados bancarios, token, header ou service role. Falhas nas contagens novas retornam `ADMIN_INSIGHTS_FAILED`.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (9 arquivos, 239 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
 **Validacoes locais antes do push:** `npm run typecheck`, `npm test` (186), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
 
 **Smoke publico/API:** `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET /api/admin/deliveries/<uuid>` sem token retornou `401 AUTH_REQUIRED`. Smoke autenticado confirmou admin ativo abrindo detalhe real, UUID inexistente com `DELIVERY_NOT_FOUND`, query `courier_id` com `VALIDATION_ERROR`, usuario nao-admin com `FORBIDDEN_ROLE` e payload sem campos proibidos.

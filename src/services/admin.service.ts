@@ -21,6 +21,7 @@ import type {
   AdminListUserPaymentsQuery,
   AdminListUsersQuery,
 } from '../validators/admin.validators.js';
+import { deliveryStatusValues } from '../validators/delivery.validators.js';
 
 const domainUserSelect =
   'id,auth_id,email,role,status,approved_at,approved_by,created_at,updated_at';
@@ -288,6 +289,16 @@ const createEmptyUserCounts = (): AdminInsights['user_counts'] => ({
   },
 });
 
+const createEmptyDeliveryCounts = (): AdminInsights['delivery_counts_by_status'] => ({
+  aguardando: 0,
+  aceita: 0,
+  coletada: 0,
+  em_transito: 0,
+  entregue: 0,
+  expirada: 0,
+  cancelada: 0,
+});
+
 const getUserCountByRoleAndStatus = async (
   role: UserRole,
   status: UserStatus,
@@ -298,6 +309,32 @@ const getUserCountByRoleAndStatus = async (
     .select('id', { count: 'exact', head: true })
     .eq('role', role)
     .eq('status', status);
+
+  if (error) {
+    throw new ApiError(500, 'ADMIN_INSIGHTS_FAILED', 'Insights administrativos falharam');
+  }
+
+  return count ?? 0;
+};
+
+const getDeliveryCountByStatus = async (status: DeliveryStatus, supabase: SupabaseClient) => {
+  const { error, count } = await supabase
+    .from('delivery_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', status);
+
+  if (error) {
+    throw new ApiError(500, 'ADMIN_INSIGHTS_FAILED', 'Insights administrativos falharam');
+  }
+
+  return count ?? 0;
+};
+
+const getPaymentCountByPaid = async (paid: boolean, supabase: SupabaseClient) => {
+  const { error, count } = await supabase
+    .from('payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('paid', paid);
 
   if (error) {
     throw new ApiError(500, 'ADMIN_INSIGHTS_FAILED', 'Insights administrativos falharam');
@@ -655,6 +692,23 @@ export const getAdminInsights = async (
     userCounts[entry.role][entry.status] = entry.count;
   }
 
+  const deliveryCountEntries = await Promise.all(
+    deliveryStatusValues.map(async (status) => ({
+      status,
+      count: await getDeliveryCountByStatus(status, supabase),
+    })),
+  );
+  const deliveryCountsByStatus = createEmptyDeliveryCounts();
+
+  for (const entry of deliveryCountEntries) {
+    deliveryCountsByStatus[entry.status] = entry.count;
+  }
+
+  const [paidPayments, pendingPayments] = await Promise.all([
+    getPaymentCountByPaid(true, supabase),
+    getPaymentCountByPaid(false, supabase),
+  ]);
+
   const pendingUsersByRole = await Promise.all([
     listLatestPendingUsersByRole('logista', supabase),
     listLatestPendingUsersByRole('motoboy', supabase),
@@ -667,6 +721,11 @@ export const getAdminInsights = async (
   return {
     generated_at: new Date().toISOString(),
     user_counts: userCounts,
+    delivery_counts_by_status: deliveryCountsByStatus,
+    payment_counts: {
+      paid: paidPayments,
+      pending: pendingPayments,
+    },
     active_accounts: {
       stores: userCounts.logista.ativo,
       couriers: userCounts.motoboy.ativo,
