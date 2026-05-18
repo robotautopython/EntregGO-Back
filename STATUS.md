@@ -8,7 +8,7 @@
 
 ## Em Andamento
 
-- [ ] Fechar operacionalmente a M-10A com commit, push, deploy, migracao remota Supabase, confirmacao de Realtime publico desabilitado e smoke pos-deploy.
+Nenhuma tarefa backend em andamento apos o fechamento operacional da M-10A.
 
 ## Proximas Tarefas
 
@@ -88,10 +88,11 @@
 - [x] M-09C backend implementada e validada localmente: `GET /api/admin/users/:id/payments` lista pagamentos administrativos por usuario para admin ativo, somente leitura, usando path param e query strict (`page`, `limit<=50`, `paid` opcional), alvo `admin` com vazio honesto, resposta sanitizada sem objeto `user`, sem `user_id`, sem `marked_by` e sem campos financeiros. Sem SQL/migration. Gates Cetico, ImpactValidator, SecurityValidator e PerformanceValidator aprovaram com ressalvas incorporadas. Backend `typecheck`, `test` (225), `lint`, `build` e `git diff --check` passaram.
 - [x] M-09C backend publicado e validado em producao: commit funcional `f413ec8091646ff580a9e99a64d6d1b34b3d5571`, consumido pelo frontend `e25d372d701e6611beec11330ff4655ec20bd7d9`; Vercel `success`; smoke publico confirmou `/api/health` `200` e rota sem token `401 AUTH_REQUIRED`; smoke autenticado confirmou lista por usuario, filtros `paid=true/false`, alvo admin vazio honesto, query proibida `user_id` com `VALIDATION_ERROR`, nao-admin com `FORBIDDEN_ROLE`, payload sanitizado e cleanup `payment=0 domain=0 auth=0`.
 - [x] M-10A backend implementada e validada localmente: servico `realtime-broadcast` emite `delivery.created`, `delivery.accepted` e `delivery.status_changed` via Supabase Realtime Broadcast privado, best-effort, payload por whitelist e logs sem PII; `delivery.service` emite apenas apos sucesso real e nao em caminhos idempotentes sem mudanca; migration adiciona policies de `select` em `realtime.messages` para `delivery:available` e `delivery:<uuid>`, sem policy de insert para `authenticated`. Gates Camisa10, Cetico, ImpactValidator, SecurityValidator, PerformanceValidator e TestEngineer usados; backend `typecheck`, `test` (236), `lint`, `build` e `git diff --check` passaram.
+- [x] M-10A backend publicado e validado em producao: commit `0c2c8e7c8b2849db947a1baa05fdf2c5622b7db6` em `origin/main`; Vercel/GitHub `success`; migration/policies remotas confirmadas em `realtime.messages`, sem grants/policies de escrita para `authenticated`/`anon`, `supabase_realtime` sem tabelas; smoke publico e autenticado confirmou `/api/health` 200, rotas protegidas 401, broadcasts `delivery.created`/`delivery.accepted`, payload minimo e cleanup completo.
 
 ## Bloqueios
 
-- Realtime M-10A esta implementado e validado localmente, mas ainda depende de commit, push, deploy, aplicacao da migration remota Supabase, confirmacao operacional de Realtime publico desabilitado e smoke pos-deploy. Projeto ainda nao possui uploads, push real, cron, dashboards complexos ou cancelamento.
+- Realtime operacional minimo M-10A esta publicado e validado em producao. Projeto ainda nao possui uploads, push real, cron, dashboards complexos ou cancelamento; assinatura realtime do motoboy aceito em `delivery:<deliveryId>` segue fora do escopo.
 - Frontend ainda possui residual moderado de `npm audit` em `next@15.5.18` via `postcss@8.4.31` interno; sem alto/critico no relatorio local, mas PWA/push real devem aguardar acompanhamento de release/advisory e Security Validator.
 - Logo/paleta inicial definida no frontend em `design.md`; refinamentos visuais seguem pendentes para telas internas.
 - Credenciais Vercel/VAPID ainda pendentes e nao devem ser hardcoded.
@@ -103,5 +104,5 @@
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
 **Testes:** passando no backend e frontend (M-10A backend: 236 testes; frontend correlato: 105 testes)
-**Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first, M-08 UI, M-09A, M-09B e M-09C validadas em producao; M-10A ainda local
+**Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first, M-08 UI, M-09A, M-09B, M-09C e M-10A validadas em producao
 **Riscos abertos:** 4

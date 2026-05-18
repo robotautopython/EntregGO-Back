@@ -4,6 +4,21 @@
 
 Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em DECISIONS; aprendizados vao em LEARNINGS.
 
+## 2026-05-18 - M-10A BACKEND FECHADA EM PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Fechamento operacional backend da M-10A concluido. Commit `0c2c8e7c8b2849db947a1baa05fdf2c5622b7db6` foi publicado em `origin/main`, contendo broadcast best-effort server-side, migration de policies em `realtime.messages`, contratos e testes.
+**Agentes utilizados:** Camisa10, DeployObservability, SecurityValidator, FinalValidator/TestEngineer, Documentador
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** `npm run typecheck`, `npm test` (236), `npm run lint`, `npm run build` e `git diff --check` passaram, com apenas avisos LF/CRLF do Windows.
+
+**Deploy e Supabase:** GitHub/Vercel retornaram `success` e `Deployment has completed`. No Supabase remoto, as duas policies M-10A de `SELECT` em `realtime.messages` foram confirmadas; RLS esta ligado; nao ha grant/policy de `insert`, `update` ou `delete` para `authenticated`/`anon`; a publicacao `supabase_realtime` esta sem tabelas.
+
+**Smoke publico e autenticado:** `/api/health` retornou `200`; rotas protegidas de entregas sem token retornaram `401 AUTH_REQUIRED`. Com dados ficticios temporarios, loja criou entrega, motoboy online recebeu `delivery.created` em `delivery:available`, motoboy aceitou, loja recebeu `delivery.accepted` em `delivery:<deliveryId>`, e os GETs REST confirmaram a fila e o detalhe como fonte da verdade.
+
+**Seguranca e cleanup:** Broadcasts tiveram apenas `{ deliveryId, status, updatedAt }`; respostas/API/DOM ficaram sem IDs internos proibidos, emails, tokens, header Authorization, service role, endereco/observacao em broadcast ou PII proibida. Cleanup final: `delivery=0`, `store=0`, `courier=0`, `domain=0`. Nenhum secret foi impresso.
+
 ## 2026-05-14 - INICIO DO PROJETO
 
 **Fase:** concepcao/fundacao
