@@ -4,6 +4,18 @@
 
 Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em DECISIONS; aprendizados vao em LEARNINGS.
 
+## 2026-05-18 - HOTFIX M-12A BACKEND LOJA EM CRIACAO/DETALHE LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Validado localmente o ajuste backend para a tela de criacao/acompanhamento da loja. `POST /api/deliveries` e `GET /api/deliveries/:id` passaram a usar select especifico com `stores(name,address)` e a retornar `store: { name, address }` por whitelist, derivado da loja da sessao. A listagem `GET /api/deliveries` permaneceu com o select antigo, sem mudar contrato fora do hotfix.
+**Status:** fechado localmente; commit, push, deploy e smoke pos-deploy pendentes
+
+**Arquivos principais:** `src/services/delivery.service.ts`, `tests/delivery-routes.spec.ts`, `CONTRACTS.md`.
+
+**Validacoes locais:** `npm run typecheck`, `npm test -- delivery-routes.spec.ts` (112 testes), `npm test` (9 arquivos, 239 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
+
+**Seguranca e escopo:** a resposta continua sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, dados de motoboy, documentos, Storage, tokens, headers, Authorization, Bearer ou service role. O backend nao aceita `store_id` no request; a loja segue derivada server-side. Sem SQL/migration/RLS/grant/env, canal realtime novo, Web Push/PWA, cron, GPS, pagamento, Storage, documentos ou M-12B.
+
 ## 2026-05-18 - M-11A BACKEND FECHADO EM PRODUCAO
 
 **Fase:** fundacao/auth-operacao

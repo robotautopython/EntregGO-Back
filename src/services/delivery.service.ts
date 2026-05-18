@@ -20,6 +20,7 @@ const storeOwnershipSelect = 'id,user_id';
 const courierOwnershipSelect = 'id,user_id,is_online';
 const storeDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at';
+const storeDeliveryDetailSelect = `${storeDeliveryListSelect},stores(name,address)`;
 const courierAvailableDeliverySelect = 'id,status,created_at,expires_at,stores(name,address)';
 const courierAcceptedDeliverySelect =
   'id,status,accepted_at,created_at,expires_at,updated_at,stores(name,address)';
@@ -76,12 +77,18 @@ interface DeliveryStoreSummary {
   address: string;
 }
 
+type DeliveryStoreRelation = DeliveryStoreSummary | DeliveryStoreSummary[] | null | undefined;
+
 interface CourierDeliveryRow {
   id: string;
   status: DeliveryRequest['status'];
   created_at: string;
   expires_at: string;
-  stores?: DeliveryStoreSummary | DeliveryStoreSummary[] | null;
+  stores?: DeliveryStoreRelation;
+}
+
+interface StoreDeliveryDetailRow extends StoreDeliveryListItem {
+  stores?: DeliveryStoreRelation;
 }
 
 interface CourierAcceptedDeliveryRow extends CourierDeliveryRow {
@@ -121,7 +128,9 @@ export interface StoreDeliveryListItem {
   updated_at: string;
 }
 
-export type StoreDeliveryDetail = StoreDeliveryListItem;
+export interface StoreDeliveryDetail extends StoreDeliveryListItem {
+  store: DeliveryStoreSummary;
+}
 
 export interface StoreDeliveryList {
   items: StoreDeliveryListItem[];
@@ -256,7 +265,7 @@ const normalizeOptionalText = (value: string | undefined): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-const normalizeStoreSummary = (relation: CourierDeliveryRow['stores']): DeliveryStoreSummary => {
+const normalizeStoreSummary = (relation: DeliveryStoreRelation): DeliveryStoreSummary => {
   const store = Array.isArray(relation) ? relation[0] : relation;
 
   return {
@@ -291,6 +300,11 @@ const toStoreDeliveryListItem = (row: StoreDeliveryListItem): StoreDeliveryListI
   in_transit_at: row.in_transit_at,
   delivered_at: row.delivered_at,
   updated_at: row.updated_at,
+});
+
+const toStoreDeliveryDetail = (row: StoreDeliveryDetailRow): StoreDeliveryDetail => ({
+  ...toStoreDeliveryListItem(row),
+  store: normalizeStoreSummary(row.stores),
 });
 
 const toCourierAcceptedDeliveryState = (
@@ -384,8 +398,8 @@ export const createDelivery = async (
       destination_address: destinationAddress,
       notes,
     })
-    .select(storeDeliveryListSelect)
-    .single<StoreDeliveryDetail>();
+    .select(storeDeliveryDetailSelect)
+    .single<StoreDeliveryDetailRow>();
 
   if (error || !data) {
     throw new ApiError(500, 'DELIVERY_CREATE_FAILED', 'Solicitacao de entrega nao pode ser criada');
@@ -393,7 +407,7 @@ export const createDelivery = async (
 
   dispatchRealtimeBroadcast(() => broadcastDeliveryCreated(data));
 
-  return toStoreDeliveryListItem(data);
+  return toStoreDeliveryDetail(data);
 };
 
 export const listStoreDeliveries = async (
@@ -440,10 +454,10 @@ export const getStoreDeliveryById = async (
 
   const { data, error } = await supabase
     .from('delivery_requests')
-    .select(storeDeliveryListSelect)
+    .select(storeDeliveryDetailSelect)
     .eq('id', deliveryId)
     .eq('store_id', store.id)
-    .maybeSingle<StoreDeliveryDetail>();
+    .maybeSingle<StoreDeliveryDetailRow>();
 
   if (error) {
     throw new ApiError(500, 'DELIVERY_GET_FAILED', 'Busca da entrega falhou');
@@ -453,7 +467,7 @@ export const getStoreDeliveryById = async (
     throw new ApiError(404, 'DELIVERY_NOT_FOUND', 'Entrega nao encontrada');
   }
 
-  return toStoreDeliveryListItem(data);
+  return toStoreDeliveryDetail(data);
 };
 
 export const listAvailableDeliveriesForCourier = async (

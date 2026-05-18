@@ -8,7 +8,7 @@
 
 ## Em Andamento
 
-Nenhuma tarefa backend em andamento apos o fechamento operacional da M-11A.
+- [ ] Fechar operacionalmente o hotfix M-12A backend: commit, push, deploy e smoke pos-deploy junto do frontend.
 
 ## Proximas Tarefas
 
@@ -91,6 +91,7 @@ Nenhuma tarefa backend em andamento apos o fechamento operacional da M-11A.
 - [x] M-10A backend publicado e validado em producao: commit `0c2c8e7c8b2849db947a1baa05fdf2c5622b7db6` em `origin/main`; Vercel/GitHub `success`; migration/policies remotas confirmadas em `realtime.messages`, sem grants/policies de escrita para `authenticated`/`anon`, `supabase_realtime` sem tabelas; smoke publico e autenticado confirmou `/api/health` 200, rotas protegidas 401, broadcasts `delivery.created`/`delivery.accepted`, payload minimo e cleanup completo.
 - [x] M-11A backend implementada e validada localmente: `GET /api/admin/insights` ganhou `delivery_counts_by_status` e `payment_counts { paid, pending }`, usando contagens fixas `select('id', { count: 'exact', head: true })` em `delivery_requests` por status e `payments` por `paid=true/false`. Sem query params novos, sem listas, sem IDs de entregas/pagamentos, sem campos sensiveis e sem SQL/migration. Backend `typecheck`, `test` (239), `lint`, `build` e `git diff --check` passaram.
 - [x] M-11A backend publicado e validado em producao: commit `dda542abbbac0353cbfd78dd2fdbec47101d8de2` em `origin/main`; Vercel/GitHub `success` e `Deployment has completed`; smoke publico confirmou `/api/health` `200` e `/api/admin/insights` sem token `401 AUTH_REQUIRED`; smoke autenticado confirmou admin ativo recebendo campos antigos mais `delivery_counts_by_status` e `payment_counts`, query proibida `limit=10` com `VALIDATION_ERROR`, nao-admin com `FORBIDDEN_ROLE`, payload sem campos proibidos e cleanup `delivery=0 payment=0 store=0 domain=0`.
+- [x] Hotfix M-12A backend validado localmente: `POST /api/deliveries` e `GET /api/deliveries/:id` agora retornam `store: { name, address }` sanitizado por embed `stores(name,address)`, com `store_id` derivado da sessao e sem alterar `GET /api/deliveries` da loja. A resposta continua sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, dados de motoboy, documentos, Storage, tokens ou headers. Sem SQL/migration/RLS/grant/env. `npm run typecheck`, `npm test` (239), `npm run lint`, `npm run build` e `git diff --check` passaram; commit, push, deploy e smoke pos-deploy pendentes.
 
 ## Bloqueios
 
@@ -105,6 +106,6 @@ Nenhuma tarefa backend em andamento apos o fechamento operacional da M-11A.
 
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
-**Testes:** passando no backend e frontend (M-11A backend: 239 testes; frontend correlato: 110 testes)
-**Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first, M-08 UI, M-09A, M-09B, M-09C, M-10A e M-11A validadas em producao
+**Testes:** passando no backend (239 testes, incluindo hotfix M-12A backend)
+**Deploy:** frontend e backend publicados em Vercel ate M-11A/M-12A anterior; hotfix M-12A backend atual validado localmente e pendente de commit, push, deploy e smoke pos-deploy
 **Riscos abertos:** 4

@@ -91,6 +91,11 @@ const storeProfile = {
   user_id: activeStoreUser.id,
 };
 
+const storeSummary = {
+  name: 'Loja Cafe',
+  address: 'Rua da Loja, 100',
+};
+
 const courierProfile = {
   id: '99999999-9999-4999-8999-999999999999',
   user_id: activeCourierUser.id,
@@ -403,7 +408,7 @@ describe('M-04A delivery routes', () => {
       error: null,
     });
     const deliveryRequestsTable = createInsertSingleTable({
-      data: deliveryRequest,
+      data: { ...deliveryRequest, stores: storeSummary },
       error: null,
     });
     mockAuthenticatedUser(activeStoreUser, {
@@ -483,7 +488,7 @@ describe('M-04A delivery routes', () => {
       error: null,
     });
     const deliveryRequestsTable = createInsertSingleTable({
-      data: deliveryRequest,
+      data: { ...deliveryRequest, stores: storeSummary },
       error: null,
     });
     mockAuthenticatedUser(activeStoreUser, {
@@ -511,6 +516,7 @@ describe('M-04A delivery routes', () => {
         in_transit_at: deliveryRequest.in_transit_at,
         delivered_at: deliveryRequest.delivered_at,
         updated_at: deliveryRequest.updated_at,
+        store: storeSummary,
       },
       message: 'Solicitacao de entrega criada',
     });
@@ -525,14 +531,25 @@ describe('M-04A delivery routes', () => {
     )[0] as string;
     expect(selectArg).not.toContain('store_id');
     expect(selectArg).not.toContain('courier_id');
+    expect(selectArg).toContain('stores(name,address)');
     expect(response.body.data).not.toHaveProperty('email');
     expect(response.body.data).not.toHaveProperty('store_id');
     expect(response.body.data).not.toHaveProperty('courier_id');
     expect(response.body.data).not.toHaveProperty('owner_name');
     expect(response.body.data).not.toHaveProperty('full_name');
     expect(response.body.data).not.toHaveProperty('logo_url');
+    expect(response.body.data).not.toHaveProperty('description');
+    expect(JSON.stringify(response.body.data)).not.toMatch(
+      /store_id|courier_id|user_id|auth_id|email|owner_name|logo_url|description|Authorization|Bearer|service_role|token/i,
+    );
     expect(response.body.data.status).toBe('aguardando');
-    expect(realtimeBroadcastMock.broadcastDeliveryCreated).toHaveBeenCalledWith(deliveryRequest);
+    expect(realtimeBroadcastMock.broadcastDeliveryCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: deliveryRequest.id,
+        status: deliveryRequest.status,
+        updated_at: deliveryRequest.updated_at,
+      }),
+    );
   });
 
   it('creates a waiting delivery request with only notes and persists null destination', async () => {
@@ -544,6 +561,7 @@ describe('M-04A delivery routes', () => {
       data: {
         ...deliveryRequestWithoutDestination,
         notes: 'Entregar no caixa',
+        stores: storeSummary,
       },
       error: null,
     });
@@ -579,6 +597,7 @@ describe('M-04A delivery routes', () => {
       data: {
         ...deliveryRequestWithoutDestination,
         notes: null,
+        stores: storeSummary,
       },
       error: null,
     });
@@ -611,7 +630,7 @@ describe('M-04A delivery routes', () => {
       error: null,
     });
     const deliveryRequestsTable = createInsertSingleTable({
-      data: deliveryRequest,
+      data: { ...deliveryRequest, stores: storeSummary },
       error: null,
     });
     mockAuthenticatedUser(activeStoreUser, {
@@ -641,6 +660,7 @@ describe('M-04A delivery routes', () => {
       data: {
         ...deliveryRequestWithoutDestination,
         notes: null,
+        stores: storeSummary,
       },
       error: null,
     });
@@ -934,7 +954,7 @@ describe('M-06 get store delivery detail', () => {
 
   it('returns a delivery only when it belongs to the authenticated store', async () => {
     const detailTable = createDeliveryDetailTable({
-      data: listRowEntregue,
+      data: { ...listRowEntregue, stores: storeSummary },
       error: null,
     });
     mockAuthenticatedUser(activeStoreUser, {
@@ -949,13 +969,17 @@ describe('M-06 get store delivery detail', () => {
 
     expect(response.body).toEqual({
       success: true,
-      data: listRowEntregue,
+      data: {
+        ...listRowEntregue,
+        store: storeSummary,
+      },
       message: 'Entrega encontrada',
     });
 
     const selectArg = (detailTable.select.mock.calls[0] as unknown[])[0] as string;
     expect(selectArg).not.toContain('store_id');
     expect(selectArg).not.toContain('courier_id');
+    expect(selectArg).toContain('stores(name,address)');
     expect(detailTable.eq).toHaveBeenCalledWith('id', listRowEntregue.id);
     expect(detailTable.eq).toHaveBeenCalledWith('store_id', storeProfile.id);
     expect(response.body.data).not.toHaveProperty('store_id');
@@ -963,8 +987,12 @@ describe('M-06 get store delivery detail', () => {
     expect(response.body.data).not.toHaveProperty('owner_name');
     expect(response.body.data).not.toHaveProperty('full_name');
     expect(response.body.data).not.toHaveProperty('logo_url');
+    expect(response.body.data).not.toHaveProperty('description');
     expect(response.body.data).not.toHaveProperty('bike_photo_url');
     expect(response.body.data).not.toHaveProperty('license_photo_url');
+    expect(JSON.stringify(response.body.data)).not.toMatch(
+      /store_id|courier_id|user_id|auth_id|email|owner_name|logo_url|description|Authorization|Bearer|service_role|token/i,
+    );
   });
 
   it('returns DELIVERY_NOT_FOUND for a missing or other-store delivery', async () => {
@@ -1070,11 +1098,6 @@ describe('M-06 get store delivery detail', () => {
     });
   });
 });
-
-const storeSummary = {
-  name: 'Loja Cafe',
-  address: 'Rua da Loja, 100',
-};
 
 const availableDeliveryRow = {
   id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',

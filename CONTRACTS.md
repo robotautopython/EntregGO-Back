@@ -639,7 +639,8 @@ Regras:
 - `notes` e opcional; quando ausente, vazio ou somente whitespace, e gravado como `null`.
 - A entrega nasce com `status=aguardando`, `courier_id=null` e `expires_at` definido pelo default do banco.
 - Escritas client-side em `delivery_requests` seguem negadas por RLS/grants; o backend usa service role.
-- A resposta e sanitizada e nunca inclui `store_id`, `courier_id`, dados de motoboy, documentos, Storage, tokens ou headers.
+- A resposta inclui apenas o resumo sanitizado da loja dona (`store.name` e `store.address`), derivado do perfil autenticado.
+- A resposta e sanitizada e nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, dados de motoboy, documentos, Storage, tokens, Authorization, Bearer, service role ou headers.
 
 Resposta:
 
@@ -657,7 +658,11 @@ Resposta:
     "collected_at": null,
     "in_transit_at": null,
     "delivered_at": null,
-    "updated_at": "2026-05-15T20:00:00.000Z"
+    "updated_at": "2026-05-15T20:00:00.000Z",
+    "store": {
+      "name": "Nome da loja",
+      "address": "Endereco operacional da loja"
+    }
   },
   "message": "Solicitacao de entrega criada"
 }
@@ -732,7 +737,8 @@ Regras:
 - `store_id` e sempre derivado do perfil `stores` do usuario autenticado; nunca vem do request.
 - Como o backend usa service role (RLS nao se aplica server-side), o isolamento multi-tenant e garantido pelo filtro server-side `id=<id>` e `store_id=<loja da sessao>`.
 - Entrega inexistente ou pertencente a outra loja retorna `DELIVERY_NOT_FOUND`.
-- A resposta nunca inclui `store_id`, `courier_id`, dados pessoais do motoboy, documentos, Storage, tokens ou headers.
+- A resposta inclui apenas o resumo sanitizado da loja dona (`store.name` e `store.address`), vindo do embed `stores(name,address)` apos o filtro `store_id=<loja da sessao>`.
+- A resposta nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, telefone, dados pessoais do motoboy, documentos, Storage, tokens, Authorization, Bearer, service role ou headers.
 - Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `STORE_PROFILE_REQUIRED`, `VALIDATION_ERROR`, `DELIVERY_NOT_FOUND`, `DELIVERY_GET_FAILED`.
 
 Resposta:
@@ -751,7 +757,11 @@ Resposta:
     "collected_at": "2026-05-17T12:02:00.000Z",
     "in_transit_at": "2026-05-17T12:04:00.000Z",
     "delivered_at": null,
-    "updated_at": "2026-05-17T12:04:00.000Z"
+    "updated_at": "2026-05-17T12:04:00.000Z",
+    "store": {
+      "name": "Nome da loja",
+      "address": "Endereco operacional da loja"
+    }
   },
   "message": "Entrega encontrada"
 }
