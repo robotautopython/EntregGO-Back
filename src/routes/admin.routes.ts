@@ -6,6 +6,7 @@ import {
   getAdminDeliveryByIdController,
   getAdminInsightsController,
   getUserDetailController,
+  listAdminUserDeliveriesController,
   listAdminDeliveriesController,
   listAdminPaymentsController,
   listUsersController,
@@ -20,6 +21,7 @@ import {
   adminInsightsQuerySchema,
   adminListDeliveriesQuerySchema,
   adminListPaymentsQuerySchema,
+  adminListUserDeliveriesQuerySchema,
   adminListUsersQuerySchema,
   emptyAdminActionBodySchema,
   emptyAdminActionQuerySchema,
@@ -69,6 +71,12 @@ adminRouter.get(
   '/users',
   validateRequest({ query: adminListUsersQuerySchema }),
   asyncHandler(listUsersController),
+);
+
+adminRouter.get(
+  '/users/:id/deliveries',
+  validateRequest({ params: userIdParamsSchema, query: adminListUserDeliveriesQuerySchema }),
+  asyncHandler(listAdminUserDeliveriesController),
 );
 
 adminRouter.get(

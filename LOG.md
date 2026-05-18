@@ -777,3 +777,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Cleanup:** dados ficticios removidos; residuos finais `delivery=0`, `store=0`, `courier=0`, `domain=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
 
 **Fora do escopo preservado:** cancelamento, alteracao de status, dados pessoais do motoboy, busca textual, filtro por data, dashboard, realtime, push, polling automatico, cron, documentos/Storage, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago.
+
+## 2026-05-17 - M-09B LISTAGEM ADMINISTRATIVA DE ENTREGAS POR USUARIO BACKEND LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada localmente a M-09B no backend: `GET /api/admin/users/:id/deliveries` foi adicionado ao `adminRouter`, protegido pelos guards admin existentes, com `params.id` UUID de usuario de dominio e query strict (`page`, `limit<=50`, `status`). O service busca o usuario alvo com select minimo `id,role`; para `logista`, resolve `stores.id` por `stores.user_id`; para `motoboy`, resolve `couriers.id` por `couriers.user_id`; para alvo `admin`, retorna lista vazia honesta sem consultar entregas. A listagem filtra server-side por `store_id` ou `courier_id`, usa embed `stores(name,address)` sem N+1 e reutiliza o shape sanitizado da M-07/M-09A.
+**Arquivos modificados:** `src/routes/admin.routes.ts`, `src/controllers/admin.controller.ts`, `src/services/admin.service.ts`, `src/validators/admin.validators.ts`, `tests/admin-routes.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** Aba `Entregas` do `UserDetailDrawer` no repositorio frontend consome este endpoint via REST/Bearer token.
+**Agentes/gates utilizados:** Camisa10, Cetico, ImpactValidator, SecurityValidator, PerformanceValidator, Documentador
+**Status:** implementado e validado localmente; commit, push, deploy e smoke pos-deploy pendentes
+
+**Ressalvas incorporadas:** O endpoint nao reutiliza `getUserDetail` nem selects de perfil com PII; perfis sao resolvidos com `select('id')`. Usuario alvo `admin` retorna `items=[]` e `total=0` sem consultar `stores`, `couriers` ou `delivery_requests`. Perfil operacional ausente retorna `ADMIN_USER_DELIVERIES_PROFILE_FAILED` sem fallback amplo. Nao houve SQL/migration; PerformanceValidator aprovou o MVP com indices existentes e recomendou EXPLAIN/smoke para logista/motoboy com e sem `status` no fechamento operacional.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 205 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
+
+**Fora do escopo preservado:** cancelamento, alteracao de status, dados pessoais do motoboy, `courier_id`, `store_id`, `user_id`, `auth_id`, email, `owner_name`, `full_name`, documentos, Storage URLs, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros, desmarcar pago, busca textual, filtro por data, dashboard, realtime, push, polling automatico e cron. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.

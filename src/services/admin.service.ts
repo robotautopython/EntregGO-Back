@@ -17,6 +17,7 @@ import { ApiError } from '../utils/errors.js';
 import type {
   AdminListDeliveriesQuery,
   AdminListPaymentsQuery,
+  AdminListUserDeliveriesQuery,
   AdminListUsersQuery,
 } from '../validators/admin.validators.js';
 
@@ -30,6 +31,7 @@ const adminStoreProfileSelect =
   'id,user_id,name,owner_name,address,description,created_at,updated_at';
 const adminCourierProfileSelect = 'id,user_id,full_name,is_online,created_at,updated_at';
 const adminInsightsPendingUserSelect = 'id,role,status,created_at';
+const adminUserDeliveriesTargetUserSelect = 'id,role';
 const adminDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)';
 const adminPaymentListSelect =
@@ -97,6 +99,15 @@ export type AdminDeliveryDetail = AdminDeliveryListItem;
 
 interface AdminPaymentStoreSummary {
   name: string;
+}
+
+interface AdminUserDeliveriesTargetUser {
+  id: string;
+  role: UserRole;
+}
+
+interface AdminUserDeliveriesProfileId {
+  id: string;
 }
 
 interface AdminPaymentUserSummaryRelation {
@@ -332,6 +343,111 @@ export const getAdminDeliveryById = async (
   }
 
   return toAdminDeliveryListItem(data);
+};
+
+const getAdminUserDeliveriesTargetUser = async (
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<AdminUserDeliveriesTargetUser> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(adminUserDeliveriesTargetUserSelect)
+    .eq('id', userId)
+    .single<AdminUserDeliveriesTargetUser>();
+
+  if (error || !data) {
+    throw new ApiError(404, 'USER_NOT_FOUND', 'Usuario nao encontrado');
+  }
+
+  return data;
+};
+
+const getAdminUserDeliveriesProfileId = async (
+  table: 'stores' | 'couriers',
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<string> => {
+  const { data, error } = await supabase
+    .from(table)
+    .select('id')
+    .eq('user_id', userId)
+    .single<AdminUserDeliveriesProfileId>();
+
+  if (error || !data) {
+    throw new ApiError(
+      500,
+      'ADMIN_USER_DELIVERIES_PROFILE_FAILED',
+      'Perfil do usuario nao encontrado',
+    );
+  }
+
+  return data.id;
+};
+
+const emptyAdminUserDeliveries = (
+  input: AdminListUserDeliveriesQuery,
+): PaginatedAdminDeliveries => ({
+  items: [],
+  pagination: {
+    page: input.page,
+    limit: input.limit,
+    total: 0,
+  },
+});
+
+export const listAdminUserDeliveries = async (
+  userId: string,
+  input: AdminListUserDeliveriesQuery,
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<PaginatedAdminDeliveries> => {
+  const targetUser = await getAdminUserDeliveriesTargetUser(userId, supabase);
+
+  if (targetUser.role === 'admin') {
+    return emptyAdminUserDeliveries(input);
+  }
+
+  const relation =
+    targetUser.role === 'logista'
+      ? {
+          column: 'store_id',
+          id: await getAdminUserDeliveriesProfileId('stores', targetUser.id, supabase),
+        }
+      : {
+          column: 'courier_id',
+          id: await getAdminUserDeliveriesProfileId('couriers', targetUser.id, supabase),
+        };
+
+  const offset = (input.page - 1) * input.limit;
+  let query = supabase
+    .from('delivery_requests')
+    .select(adminDeliveryListSelect, { count: 'exact' })
+    .eq(relation.column, relation.id);
+
+  if (input.status) {
+    query = query.eq('status', input.status);
+  }
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + input.limit - 1);
+
+  if (error) {
+    throw new ApiError(
+      500,
+      'ADMIN_USER_DELIVERIES_LIST_FAILED',
+      'Listagem de entregas do usuario falhou',
+    );
+  }
+
+  return {
+    items: ((data ?? []) as AdminDeliveryRow[]).map(toAdminDeliveryListItem),
+    pagination: {
+      page: input.page,
+      limit: input.limit,
+      total: count ?? 0,
+    },
+  };
 };
 
 export const listAdminPayments = async (

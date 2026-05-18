@@ -83,6 +83,7 @@ Todas as rotas admin exigem Bearer token de usuario autenticado, role `admin` e 
 - `GET /api/admin/insights`
 - `GET /api/admin/deliveries`
 - `GET /api/admin/deliveries/:id`
+- `GET /api/admin/users/:id/deliveries`
 - `GET /api/admin/payments`
 - `PATCH /api/admin/payments/:id/mark-paid`
 - `PATCH /api/admin/users/:id/approve`
@@ -242,6 +243,81 @@ Resposta:
     }
   },
   "message": "Entrega administrativa encontrada"
+}
+```
+
+Fora deste contrato: cancelamento, alteracao de status, dados pessoais do motoboy, `courier_id`, `store_id`, `user_id`, `auth_id`, email, `owner_name`, `full_name`, documentos, Storage URLs, busca textual, filtro por data, dashboard, realtime, push, polling automatico, cron, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros e desmarcar pago.
+
+### `GET /api/admin/users/:id/deliveries`
+
+Lista entregas relacionadas a um usuario de dominio em modo administrativo somente leitura. Exige `Authorization: Bearer <access_token>`, usuario autenticado com `role=admin` e `status=ativo`.
+
+Params:
+
+- `id`: UUID do usuario de dominio.
+
+Query params (schema strict):
+
+- `page`: inteiro, minimo 1, default 1.
+- `limit`: inteiro, minimo 1, maximo 50, default 20.
+- `status`: opcional, um de `aguardando|aceita|coletada|em_transito|entregue|expirada|cancelada`.
+- Qualquer outro parametro, incluindo `store_id`, `courier_id`, `user_id`, `auth_id`, `email`, busca textual ou filtro de data, gera `VALIDATION_ERROR`.
+
+Regras:
+
+- O endpoint usa service role apenas no backend e retorna a mesma whitelist sanitizada da M-07/M-09A.
+- O usuario alvo e buscado por `users.id` com select minimo (`id,role`).
+- Para `role=logista`, o backend resolve `stores.id` por `stores.user_id=<id>` e filtra `delivery_requests.store_id` server-side.
+- Para `role=motoboy`, o backend resolve `couriers.id` por `couriers.user_id=<id>` e filtra `delivery_requests.courier_id` server-side.
+- Para `role=admin`, retorna lista vazia honesta com `pagination.total=0`, sem consultar `stores`, `couriers` ou `delivery_requests`.
+- Se o perfil operacional de logista/motoboy nao existir, retorna `ADMIN_USER_DELIVERIES_PROFILE_FAILED` sem consultar entregas.
+- A consulta de entregas usa embed `stores(name,address)` na mesma query, sem N+1, com `count: exact`, `range`, ordem `created_at desc, id desc` e filtro opcional por `status`.
+- Nao ha SQL/migration na M-09B local; PerformanceValidator aprovou o MVP com indices existentes e ressalva para reavaliar se usuarios acumularem milhares de entregas.
+- A resposta nunca inclui `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, `full_name`, documentos, Storage URLs, tokens, cookies, headers ou service role.
+- Dados de motoboy ficam totalmente fora do v1, inclusive nome, documento, status online e objeto `courier`.
+- Erros possiveis: `AUTH_REQUIRED`, `INVALID_TOKEN`, `DOMAIN_USER_NOT_FOUND`, `USER_PENDING`, `USER_BLOCKED`, `FORBIDDEN_ROLE`, `VALIDATION_ERROR`, `USER_NOT_FOUND`, `ADMIN_USER_DELIVERIES_PROFILE_FAILED`, `ADMIN_USER_DELIVERIES_LIST_FAILED`.
+
+Resposta para logista/motoboy:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "destination_address": "Endereco de destino",
+        "notes": "Observacao opcional",
+        "status": "entregue",
+        "created_at": "2026-05-17T12:00:00.000Z",
+        "expires_at": "2026-05-17T12:01:00.000Z",
+        "accepted_at": "2026-05-17T12:00:20.000Z",
+        "collected_at": "2026-05-17T12:02:00.000Z",
+        "in_transit_at": "2026-05-17T12:04:00.000Z",
+        "delivered_at": "2026-05-17T12:12:00.000Z",
+        "updated_at": "2026-05-17T12:12:00.000Z",
+        "store": {
+          "name": "Nome da loja",
+          "address": "Endereco operacional da loja"
+        }
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total": 1 }
+  },
+  "message": "Entregas administrativas do usuario encontradas"
+}
+```
+
+Resposta para usuario alvo `role=admin`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [],
+    "pagination": { "page": 1, "limit": 20, "total": 0 }
+  },
+  "message": "Entregas administrativas do usuario encontradas"
 }
 ```
 
@@ -879,7 +955,6 @@ O frontend admin ja possui telas reais para usuarios, insights, entregas e confi
 
 Ainda nao existem no backend:
 
-- `GET /api/admin/users/:id/deliveries?page=1`
 - signed URLs para documentos em Storage
 - tabela/endpoint de `admin_notes`
 

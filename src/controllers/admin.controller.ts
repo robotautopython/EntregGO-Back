@@ -5,6 +5,7 @@ import {
   blockUser,
   getAdminDeliveryById,
   getAdminInsights,
+  listAdminUserDeliveries,
   getUserDetail,
   listAdminDeliveries,
   listAdminPayments,
@@ -18,6 +19,7 @@ import type {
   AdminDeliveryIdParams,
   AdminListDeliveriesQuery,
   AdminListPaymentsQuery,
+  AdminListUserDeliveriesQuery,
   AdminListUsersQuery,
   PaymentIdParams,
   UserIdParams,
@@ -46,6 +48,16 @@ export const getAdminDeliveryByIdController = async (request: Request, response:
   const result = await getAdminDeliveryById(params.id);
 
   sendSuccess(response, result, 'Entrega administrativa encontrada');
+};
+
+export const listAdminUserDeliveriesController = async (request: Request, response: Response) => {
+  const params = request.params as UserIdParams;
+  const result = await listAdminUserDeliveries(
+    params.id,
+    request.query as unknown as AdminListUserDeliveriesQuery,
+  );
+
+  sendSuccess(response, result, 'Entregas administrativas do usuario encontradas');
 };
 
 export const listAdminPaymentsController = async (request: Request, response: Response) => {

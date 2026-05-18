@@ -18,6 +18,8 @@ export const adminListDeliveriesQuerySchema = z
   })
   .strict();
 
+export const adminListUserDeliveriesQuerySchema = adminListDeliveriesQuerySchema;
+
 export const adminListPaymentsQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
@@ -54,6 +56,7 @@ export const paymentIdParamsSchema = z.object({
 export type AdminDeliveryIdParams = z.infer<typeof adminDeliveryIdParamsSchema>;
 export type AdminListDeliveriesQuery = z.infer<typeof adminListDeliveriesQuerySchema>;
 export type AdminListPaymentsQuery = z.infer<typeof adminListPaymentsQuerySchema>;
+export type AdminListUserDeliveriesQuery = z.infer<typeof adminListUserDeliveriesQuerySchema>;
 export type AdminListUsersQuery = z.infer<typeof adminListUsersQuerySchema>;
 export type PaymentIdParams = z.infer<typeof paymentIdParamsSchema>;
 export type UserIdParams = z.infer<typeof userIdParamsSchema>;
