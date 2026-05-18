@@ -792,3 +792,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Validacoes locais:** Backend `npm run typecheck`, `npm test` (7 arquivos, 205 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
 
 **Fora do escopo preservado:** cancelamento, alteracao de status, dados pessoais do motoboy, `courier_id`, `store_id`, `user_id`, `auth_id`, email, `owner_name`, `full_name`, documentos, Storage URLs, gateway, checkout, PIX, cartao, boleto, cobranca integrada, comprovante/upload, valor financeiro, repasse/split, nota fiscal, tela para loja/motoboy, criacao/geracao mensal de registros, desmarcar pago, busca textual, filtro por data, dashboard, realtime, push, polling automatico e cron. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+## 2026-05-17 - M-09B BACKEND FECHADO EM PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Backend funcional `30b454f1de93254f9ca46ec9073bbf6cecea2c73` publicado em `origin/main`, disponibilizando `GET /api/admin/users/:id/deliveries` em producao para a UI frontend `59c432d5fb2d1540a4bf44edd226df369293e06b`.
+**Agentes utilizados:** Camisa10, DeployObservability, Documentador
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** `npm run typecheck`, `npm test` (205), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace.
+
+**Deploy e smoke publico:** `git ls-remote` confirmou `30b454f1de93254f9ca46ec9073bbf6cecea2c73` em `refs/heads/main`; GitHub deployment/Vercel retornou `success`. `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET /api/admin/users/<uuid>/deliveries` sem token retornou `401 AUTH_REQUIRED`.
+
+**Smoke autenticado:** com dados ficticios temporarios, admin ativo consultou entregas de logista com e sem entrega atribuida, consultou entregas de motoboy com e sem `status=aceita`, alvo admin retornou `items=[]` e `total=0`, query proibida `user_id` retornou `VALIDATION_ERROR` e logista recebeu `FORBIDDEN_ROLE`. Payloads ficaram sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `full_name`, documentos, Storage URLs, token, header ou financeiro.
+
+**Cleanup:** recursos temporarios removidos; residuos finais `delivery=0`, `store=0`, `courier=0`, `domain=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
