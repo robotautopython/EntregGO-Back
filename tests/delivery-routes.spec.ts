@@ -8,6 +8,12 @@ const supabaseMock = vi.hoisted(() => ({
   from: vi.fn(),
 }));
 
+const realtimeBroadcastMock = vi.hoisted(() => ({
+  broadcastDeliveryCreated: vi.fn(),
+  broadcastDeliveryAccepted: vi.fn(),
+  broadcastDeliveryStatusChanged: vi.fn(),
+}));
+
 vi.mock('../src/config/supabase.js', () => ({
   getSupabaseAdminClient: () => ({
     auth: {
@@ -16,6 +22,8 @@ vi.mock('../src/config/supabase.js', () => ({
     from: supabaseMock.from,
   }),
 }));
+
+vi.mock('../src/services/realtime-broadcast.service.js', () => realtimeBroadcastMock);
 
 const { app } = await import('../src/app.js');
 
@@ -306,6 +314,12 @@ const validPayload = {
   notes: 'Entregar na portaria',
 };
 
+beforeEach(() => {
+  realtimeBroadcastMock.broadcastDeliveryCreated.mockReset();
+  realtimeBroadcastMock.broadcastDeliveryAccepted.mockReset();
+  realtimeBroadcastMock.broadcastDeliveryStatusChanged.mockReset();
+});
+
 describe('M-04A delivery routes', () => {
   beforeEach(() => {
     supabaseMock.getUser.mockReset();
@@ -436,6 +450,33 @@ describe('M-04A delivery routes', () => {
     });
   });
 
+  it('does not broadcast when delivery creation fails', async () => {
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const deliveryRequestsTable = createInsertSingleTable({
+      data: null,
+      error: { message: 'db down' },
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: deliveryRequestsTable,
+    });
+
+    const response = await request(app)
+      .post('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .send(validPayload)
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: { code: 'DELIVERY_CREATE_FAILED' },
+    });
+    expect(realtimeBroadcastMock.broadcastDeliveryCreated).not.toHaveBeenCalled();
+  });
+
   it('creates a waiting delivery request for active stores using the authenticated store profile', async () => {
     const storesTable = createSelectSingleTable({
       data: storeProfile,
@@ -491,6 +532,7 @@ describe('M-04A delivery routes', () => {
     expect(response.body.data).not.toHaveProperty('full_name');
     expect(response.body.data).not.toHaveProperty('logo_url');
     expect(response.body.data.status).toBe('aguardando');
+    expect(realtimeBroadcastMock.broadcastDeliveryCreated).toHaveBeenCalledWith(deliveryRequest);
   });
 
   it('creates a waiting delivery request with only notes and persists null destination', async () => {
@@ -525,6 +567,7 @@ describe('M-04A delivery routes', () => {
       destination_address: null,
       notes: 'Entregar no caixa',
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryCreated).toHaveBeenCalledTimes(1);
   });
 
   it('creates a waiting delivery request from an empty payload', async () => {
@@ -557,6 +600,36 @@ describe('M-04A delivery routes', () => {
       destination_address: null,
       notes: null,
     });
+  });
+
+  it('keeps the REST creation success when broadcast dispatch rejects', async () => {
+    realtimeBroadcastMock.broadcastDeliveryCreated.mockRejectedValueOnce(
+      new Error('realtime down'),
+    );
+    const storesTable = createSelectSingleTable({
+      data: storeProfile,
+      error: null,
+    });
+    const deliveryRequestsTable = createInsertSingleTable({
+      data: deliveryRequest,
+      error: null,
+    });
+    mockAuthenticatedUser(activeStoreUser, {
+      stores: storesTable,
+      delivery_requests: deliveryRequestsTable,
+    });
+
+    const response = await request(app)
+      .post('/api/deliveries')
+      .set('Authorization', 'Bearer store-token')
+      .send(validPayload)
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      success: true,
+      data: { id: deliveryRequest.id, status: 'aguardando' },
+    });
+    expect(realtimeBroadcastMock.broadcastDeliveryCreated).toHaveBeenCalledTimes(1);
   });
 
   it('normalizes whitespace destination and notes to null', async () => {
@@ -1022,6 +1095,7 @@ const acceptedDeliveryState = {
   accepted_at: '2026-05-16T12:00:20.000Z',
   created_at: deliveryRequest.created_at,
   expires_at: '2099-05-16T12:01:00.000Z',
+  updated_at: '2026-05-16T12:00:20.000Z',
   stores: storeSummary,
   destination_address: 'Rua Destino sigilosa',
   notes: 'Nao expor',
@@ -1035,6 +1109,7 @@ const activeDeliveryState = {
   accepted_at: '2026-05-16T12:00:20.000Z',
   created_at: deliveryRequest.created_at,
   expires_at: '2099-05-16T12:01:00.000Z',
+  updated_at: '2026-05-16T12:00:20.000Z',
   stores: storeSummary,
   store_id: storeProfile.id,
   courier_id: courierProfile.id,
@@ -1813,7 +1888,7 @@ describe('Fatia 2 courier active delivery', () => {
     });
 
     expect(activeTable.select).toHaveBeenCalledWith(
-      'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)',
+      'id,destination_address,notes,status,accepted_at,created_at,expires_at,updated_at,stores(name,address)',
     );
     expect(activeTable.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
     expect(activeTable.in).toHaveBeenCalledWith('status', ['aceita', 'coletada', 'em_transito']);
@@ -2034,7 +2109,7 @@ describe('Fatia 4A courier delivery status transitions', () => {
       expect(updateTable.updateBuilder.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
       expect(updateTable.updateBuilder.eq).toHaveBeenCalledWith('status', previousStatus);
       expect(updateTable.updateBuilder.select).toHaveBeenCalledWith(
-        'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)',
+        'id,destination_address,notes,status,accepted_at,created_at,expires_at,updated_at,stores(name,address)',
       );
       expect(updateTable.select).not.toHaveBeenCalled();
       expect(response.body).toMatchObject({
@@ -2063,6 +2138,9 @@ describe('Fatia 4A courier delivery status transitions', () => {
         to_status: targetStatus,
         result: 'updated',
       });
+      expect(realtimeBroadcastMock.broadcastDeliveryStatusChanged).toHaveBeenCalledWith(
+        returnedState,
+      );
     },
   );
 
@@ -2100,6 +2178,7 @@ describe('Fatia 4A courier delivery status transitions', () => {
       from_status: 'coletada',
       to_status: 'coletada',
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryStatusChanged).not.toHaveBeenCalled();
   });
 
   it('rejects invalid transition order', async () => {
@@ -2136,6 +2215,7 @@ describe('Fatia 4A courier delivery status transitions', () => {
       from_status: 'aceita',
       to_status: 'entregue',
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryStatusChanged).not.toHaveBeenCalled();
   });
 
   it('returns DELIVERY_NOT_FOUND for missing or unassigned-to-this-courier deliveries', async () => {
@@ -2169,6 +2249,7 @@ describe('Fatia 4A courier delivery status transitions', () => {
     });
     expect(updateTable.currentBuilder.eq).toHaveBeenCalledWith('id', deliveryRequest.id);
     expect(updateTable.currentBuilder.eq).toHaveBeenCalledWith('courier_id', courierProfile.id);
+    expect(realtimeBroadcastMock.broadcastDeliveryStatusChanged).not.toHaveBeenCalled();
   });
 
   it('returns a standardized failure when the conditional update fails', async () => {
@@ -2203,6 +2284,7 @@ describe('Fatia 4A courier delivery status transitions', () => {
       to_status: 'coletada',
       result: 'failed',
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryStatusChanged).not.toHaveBeenCalled();
   });
 });
 
@@ -2262,7 +2344,7 @@ describe('Fatia 1 courier delivery acceptance', () => {
     expect(acceptTable.updateBuilder.is).toHaveBeenCalledWith('courier_id', null);
     expect(acceptTable.updateBuilder.gt).toHaveBeenCalledWith('expires_at', 'now');
     expect(acceptTable.updateBuilder.select).toHaveBeenCalledWith(
-      'id,status,accepted_at,created_at,expires_at,stores(name,address)',
+      'id,status,accepted_at,created_at,expires_at,updated_at,stores(name,address)',
     );
     expect(acceptTable.select).not.toHaveBeenCalled();
     expect(response.body.data).not.toHaveProperty('courier_id');
@@ -2273,6 +2355,9 @@ describe('Fatia 1 courier delivery acceptance', () => {
       delivery_id: deliveryRequest.id,
       result: 'accepted',
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryAccepted).toHaveBeenCalledWith(
+      acceptedDeliveryState,
+    );
   });
 
   it('returns one success and one ALREADY_ACCEPTED when two couriers race for the same delivery', async () => {
@@ -2365,6 +2450,7 @@ describe('Fatia 1 courier delivery acceptance', () => {
     expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toMatchObject({
       result: 'idempotent',
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryAccepted).not.toHaveBeenCalled();
   });
 
   it('returns DELIVERY_NOT_FOUND when the delivery does not exist', async () => {
@@ -2395,6 +2481,7 @@ describe('Fatia 1 courier delivery acceptance', () => {
       success: false,
       error: { code: 'DELIVERY_NOT_FOUND' },
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryAccepted).not.toHaveBeenCalled();
   });
 
   it('returns DELIVERY_EXPIRED when the delivery is still waiting but expired', async () => {
@@ -2431,6 +2518,7 @@ describe('Fatia 1 courier delivery acceptance', () => {
       success: false,
       error: { code: 'DELIVERY_EXPIRED' },
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryAccepted).not.toHaveBeenCalled();
   });
 
   it('requires courier profile and online status before accepting', async () => {
@@ -2450,5 +2538,6 @@ describe('Fatia 1 courier delivery acceptance', () => {
       success: false,
       error: { code: 'COURIER_OFFLINE' },
     });
+    expect(realtimeBroadcastMock.broadcastDeliveryAccepted).not.toHaveBeenCalled();
   });
 });

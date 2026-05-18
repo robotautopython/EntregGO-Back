@@ -3,6 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../config/supabase.js';
 import type { DeliveryRequest } from '../types/domain.js';
 import { ApiError } from '../utils/errors.js';
+import {
+  broadcastDeliveryAccepted,
+  broadcastDeliveryCreated,
+  broadcastDeliveryStatusChanged,
+} from './realtime-broadcast.service.js';
 import type {
   CreateDeliveryInput,
   ListAvailableDeliveriesQuery,
@@ -17,11 +22,11 @@ const storeDeliveryListSelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at';
 const courierAvailableDeliverySelect = 'id,status,created_at,expires_at,stores(name,address)';
 const courierAcceptedDeliverySelect =
-  'id,status,accepted_at,created_at,expires_at,stores(name,address)';
+  'id,status,accepted_at,created_at,expires_at,updated_at,stores(name,address)';
 const courierAcceptedDeliveryConflictSelect =
-  'id,status,courier_id,accepted_at,created_at,expires_at,stores(name,address)';
+  'id,status,courier_id,accepted_at,created_at,expires_at,updated_at,stores(name,address)';
 const courierActiveDeliverySelect =
-  'id,destination_address,notes,status,accepted_at,created_at,expires_at,stores(name,address)';
+  'id,destination_address,notes,status,accepted_at,created_at,expires_at,updated_at,stores(name,address)';
 const courierHistoryDeliverySelect =
   'id,destination_address,notes,status,created_at,expires_at,accepted_at,collected_at,in_transit_at,delivered_at,updated_at,stores(name,address)';
 const databaseNow = 'now';
@@ -81,6 +86,7 @@ interface CourierDeliveryRow {
 
 interface CourierAcceptedDeliveryRow extends CourierDeliveryRow {
   accepted_at: string | null;
+  updated_at: string;
 }
 
 interface CourierAcceptedDeliveryConflictRow extends CourierAcceptedDeliveryRow {
@@ -91,6 +97,7 @@ interface CourierActiveDeliveryRow extends CourierDeliveryRow {
   destination_address: string | null;
   notes: string | null;
   accepted_at: string | null;
+  updated_at: string;
 }
 
 interface CourierHistoryDeliveryRow extends CourierActiveDeliveryRow {
@@ -258,6 +265,10 @@ const normalizeStoreSummary = (relation: CourierDeliveryRow['stores']): Delivery
   };
 };
 
+const dispatchRealtimeBroadcast = (task: () => Promise<void>) => {
+  Promise.resolve(task()).catch(() => undefined);
+};
+
 const toCourierAvailableDeliveryListItem = (
   row: CourierDeliveryRow,
 ): CourierAvailableDeliveryListItem => ({
@@ -379,6 +390,8 @@ export const createDelivery = async (
   if (error || !data) {
     throw new ApiError(500, 'DELIVERY_CREATE_FAILED', 'Solicitacao de entrega nao pode ser criada');
   }
+
+  dispatchRealtimeBroadcast(() => broadcastDeliveryCreated(data));
 
   return toStoreDeliveryListItem(data);
 };
@@ -502,6 +515,7 @@ export const acceptDeliveryForCourier = async (
 
   if (accepted) {
     logDeliveryAccept(deliveryId, 'accepted');
+    dispatchRealtimeBroadcast(() => broadcastDeliveryAccepted(accepted));
     return toCourierAcceptedDeliveryState(accepted);
   }
 
@@ -649,6 +663,7 @@ export const updateDeliveryStatusForCourier = async (
 
   if (updated) {
     logDeliveryStatusUpdate(deliveryId, transition.from, status, 'updated');
+    dispatchRealtimeBroadcast(() => broadcastDeliveryStatusChanged(updated));
     return toCourierDeliveryStatusState(updated);
   }
 

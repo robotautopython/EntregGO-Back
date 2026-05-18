@@ -835,3 +835,18 @@ Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em
 **Smoke autenticado:** com dados ficticios temporarios, admin ativo consultou pagamentos de logista por usuario; `paid=true` e `paid=false` filtraram corretamente; alvo admin retornou `items=[]` e `total=0`; query proibida `user_id` retornou `VALIDATION_ERROR`; logista recebeu `FORBIDDEN_ROLE`. Payloads ficaram sem `user_id`, `auth_id`, email, `owner_name`, `full_name`, `marked_by`, valor financeiro, metodo, PIX, cartao, boleto, comprovante, dados bancarios, token, header Authorization ou service role.
 
 **Cleanup:** recursos temporarios removidos; residuos finais `payment=0`, `domain=0`, `auth=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+## 2026-05-18 - M-10A REALTIME OPERACIONAL MINIMO BACKEND LOCAL
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Implementada localmente a parte backend da M-10A. Foi criado `src/services/realtime-broadcast.service.ts` para emitir Supabase Realtime Broadcast privado em `delivery:available` e `delivery:<deliveryId>`, com payload minimo `{ deliveryId, status, updatedAt }`, timeout curto e falha capturada sem quebrar REST. `src/services/delivery.service.ts` passou a emitir `delivery.created`, `delivery.accepted` e `delivery.status_changed` somente apos sucesso real de criacao, aceite e mudanca de status. A migration `20260518120000_m10a_realtime_broadcast_policies.sql` adiciona policies de `select` em `realtime.messages`, sem policy de insert para `authenticated`.
+**Arquivos modificados:** `src/services/realtime-broadcast.service.ts`, `src/services/delivery.service.ts`, `supabase/migrations/20260518120000_m10a_realtime_broadcast_policies.sql`, `tests/delivery-routes.spec.ts`, `tests/realtime-broadcast.service.spec.ts`, `tests/realtime-policies.spec.ts`, `CONTRACTS.md`, `STATUS.md`, `LOG.md`
+**Frontend relacionado:** `FilaDisponivel` assina `delivery:available`; `EntregaDetalhe` assina `delivery:<deliveryId>` e ambos refazem GET REST.
+**Agentes/gates utilizados:** Camisa10, Cetico, ImpactValidator, SecurityValidator, PerformanceValidator, TestEngineer, Documentador
+**Status:** implementado e validado localmente; commit, push, deploy, migration remota Supabase e smoke pos-deploy pendentes
+
+**Ressalvas incorporadas:** Broadcast e best-effort e nao altera sucesso/erro das rotas REST. Nao ha emissao em validacao invalida, permissao negada, entrega inexistente, entrega ja aceita por outro courier, entrega expirada, transicao invalida ou retry idempotente sem mudanca. Payload nao contem endereco, observacao, nome, email, telefone, `store_id`, `courier_id`, `user_id`, `auth_id`, token, header, service role ou PII. Logs registram somente evento, `delivery_id` e resultado tecnico. Policy `delivery:<uuid>` valida regex antes de cast para UUID e falha fechado para topic malformado. Realtime publico deve estar desabilitado no Supabase antes do deploy/smoke.
+
+**Validacoes locais:** Backend `npm run typecheck`, `npm test` (9 arquivos, 236 testes), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows, sem erro de whitespace. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
+**Fora do escopo preservado:** Web Push/VAPID, Service Worker/PWA real, polling automatico, cron/expiracao automatica, cancelamento, GPS/mapa/raio, dados pessoais do motoboy para loja, assinatura realtime do motoboy aceito em `delivery:<deliveryId>`, leitura direta de tabelas de dominio pelo frontend e payload realtime com dados operacionais completos.

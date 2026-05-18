@@ -33,6 +33,45 @@ O backend concentra regra de negocio, validacao server-side, autorizacao, upload
 - Role: `admin`, `logista`, `motoboy`
 - Entrega: `aguardando`, `aceita`, `coletada`, `em_transito`, `entregue`, `expirada`, `cancelada`
 
+## Realtime M-10A - Broadcast privado como gatilho REST
+
+A M-10A usa Supabase Realtime Broadcast apenas como invalidacao leve. A API REST continua sendo a fonte da verdade; ao receber evento, o frontend deve chamar o endpoint REST autorizado existente.
+
+Eventos e canais:
+
+- `delivery.created` em `delivery:available`; consumidor: motoboys ativos e online; acao esperada: `GET /api/deliveries/available`.
+- `delivery.accepted` em `delivery:<deliveryId>`; consumidor: loja dona da entrega; acao esperada: `GET /api/deliveries/:id`.
+- `delivery.status_changed` em `delivery:<deliveryId>`; consumidor: loja dona da entrega; acao esperada: `GET /api/deliveries/:id`.
+
+Payload permitido:
+
+```json
+{
+  "deliveryId": "uuid",
+  "status": "aguardando|aceita|coletada|em_transito|entregue",
+  "updatedAt": "iso"
+}
+```
+
+Regras backend:
+
+- Broadcast e emitido somente server-side pelo backend, apos sucesso real de `POST /api/deliveries`, `POST /api/deliveries/:id/accept` ou `PATCH /api/deliveries/:id/status`.
+- Emissao e best-effort, com timeout curto; falha de Realtime nunca quebra a resposta REST.
+- Nao ha emissao em erro de negocio, validacao invalida, usuario sem permissao, entrega inexistente, entrega ja aceita por outro courier, entrega expirada, transicao invalida ou retry idempotente sem mudanca de estado.
+- Payload e montado por whitelist e nunca inclui endereco, observacao, nome, email, telefone, `store_id`, `courier_id`, `user_id`, `auth_id`, token, header, service role, PII ou dado interno de autorizacao.
+- Logs de broadcast usam apenas `event`, `delivery_id` e `result`, sem payload completo.
+
+Policies em `realtime.messages`:
+
+- Canais privados obrigatorios; cliente deve assinar com `config: { private: true }` e JWT atual.
+- Realtime publico deve estar desabilitado no Supabase antes do deploy/smoke da M-10A.
+- Nao existe policy de insert para `authenticated`; cliente autenticado nao pode emitir broadcast.
+- `delivery:available` permite `select` apenas para usuario autenticado, usuario de dominio `role=motoboy`, `status=ativo`, courier proprio com `is_online=true` e `realtime.messages.extension='broadcast'`.
+- `delivery:<uuid>` permite `select` apenas para usuario autenticado, usuario de dominio `role=logista`, `status=ativo` e loja dona da entrega.
+- Topic `delivery:<uuid>` deve casar regex de UUID antes de qualquer cast; topic malformado falha fechado.
+
+Fora da M-10A: Web Push/VAPID, Service Worker/PWA real, polling automatico, cron/expiracao automatica, cancelamento, GPS/mapa/raio, dados pessoais do motoboy para loja, assinatura realtime do motoboy aceito em `delivery:<deliveryId>`, leitura direta de tabelas de dominio pelo frontend e payload realtime com dados operacionais completos.
+
 ## Auth e cadastro M-02A
 
 ### `POST /api/auth/register/store`
