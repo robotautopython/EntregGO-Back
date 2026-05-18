@@ -4,6 +4,21 @@
 
 Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em DECISIONS; aprendizados vao em LEARNINGS.
 
+## 2026-05-18 - HOTFIX M-12A BACKEND FECHADO EM PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Fechamento operacional backend do hotfix M-12A concluido. Commit funcional `6a78bc872bbf34eb9d6eedf664395d5eb8e313a1` foi publicado em `origin/main`, mantendo `GET /api/deliveries` da loja inalterado e retornando `store: { name, address }` sanitizado em `POST /api/deliveries` e `GET /api/deliveries/:id`.
+**Frontend relacionado:** `/loja/nova-entrega` publicado no frontend `751957ee156ee762cb2f10a19cf5c00a350a7330`.
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** `npm run typecheck`, `npm test` (239), `npm run lint`, `npm run build` e `git diff --check` passaram. `git diff --check` exibiu apenas avisos LF/CRLF do Windows.
+
+**Deploy e smoke publico:** `git ls-remote` confirmou `6a78bc872bbf34eb9d6eedf664395d5eb8e313a1` em `refs/heads/main`; GitHub/Vercel retornou `success` e `Deployment has completed`. `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET /api/deliveries` e `GET /api/deliveries/<uuid>` sem token retornaram `401 AUTH_REQUIRED`; frontend `/loja/nova-entrega` e `/loja/entregas/<uuid>` retornaram `200`.
+
+**Smoke autenticado:** com dados ficticios temporarios, loja ativa criou entrega pela UI; a resposta de `POST /api/deliveries` trouxe `store.name/address` e nao trouxe `store_id`, `courier_id`, `user_id`, `auth_id`, email, `owner_name`, `logo_url`, `description`, token, header Authorization, Bearer ou service role. Apos aceite/atualizacao do motoboy, o frontend refez `GET /api/deliveries/:id`, recebeu payload sanitizado com `store.name/address` e atualizou o card via REST.
+
+**Cleanup e escopo:** cleanup final `delivery=0`, `store=0`, `courier=0`, `domain=0`, `auth=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso. Sem SQL/migration/RLS/grant/env, canal realtime novo, Web Push/PWA/Service Worker/VAPID, cron, GPS, pagamento, Storage, documentos ou M-12B.
+
 ## 2026-05-18 - HOTFIX M-12A BACKEND LOJA EM CRIACAO/DETALHE LOCAL
 
 **Fase:** fundacao/auth-operacao
