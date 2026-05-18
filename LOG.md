@@ -4,6 +4,21 @@
 
 Registro cronologico de ciclos significativos. Fatos ficam aqui; decisoes vao em DECISIONS; aprendizados vao em LEARNINGS.
 
+## 2026-05-18 - M-11A BACKEND FECHADO EM PRODUCAO
+
+**Fase:** fundacao/auth-operacao
+**O que aconteceu:** Fechamento operacional backend da M-11A concluido. Commit `dda542abbbac0353cbfd78dd2fdbec47101d8de2` foi publicado em `origin/main`, adicionando `delivery_counts_by_status` e `payment_counts { paid, pending }` ao `GET /api/admin/insights`, sem query params novos, listas, IDs de entregas/pagamentos ou migration.
+**Agentes utilizados:** Camisa10, DeployObservability, SecurityValidator, FinalValidator/TestEngineer, Documentador
+**Status:** fechado em producao
+
+**Validacoes locais antes do push:** `npm run typecheck`, `npm test` (239), `npm run lint`, `npm run build` e `git diff --check` passaram, com apenas avisos LF/CRLF do Windows.
+
+**Deploy e smoke publico:** `git ls-remote` confirmou `dda542abbbac0353cbfd78dd2fdbec47101d8de2` em `refs/heads/main`; GitHub/Vercel retornou `success` e `Deployment has completed`. `GET https://entreggoback.vercel.app/api/health` retornou `200`; `GET /api/admin/insights` sem token retornou `401 AUTH_REQUIRED`.
+
+**Smoke autenticado:** com dados ficticios temporarios, admin ativo chamou `GET /api/admin/insights` e recebeu campos antigos mais `delivery_counts_by_status` e `payment_counts`; `?limit=10` retornou `VALIDATION_ERROR`; logista ativo recebeu `FORBIDDEN_ROLE`. O payload ficou sem `store_id`, `courier_id`, `user_id`, `auth_id`, email, nomes, IDs de entrega/pagamento, mes de referencia, vencimento, auditoria de pagamento, valor, metodo, PIX, cartao, boleto, comprovante, gateway, dados bancarios, token, header Authorization ou service role.
+
+**Cleanup:** dados ficticios removidos; residuos finais `delivery=0`, `payment=0`, `store=0`, `domain=0`. Nenhum token, cookie, header Authorization, service role ou secret foi impresso.
+
 ## 2026-05-18 - M-10A BACKEND FECHADA EM PRODUCAO
 
 **Fase:** fundacao/auth-operacao

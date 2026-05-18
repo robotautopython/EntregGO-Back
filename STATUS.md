@@ -8,13 +8,13 @@
 
 ## Em Andamento
 
-M-11A backend implementada e validada localmente; commit, push, deploy e smoke pos-deploy pendentes.
+Nenhuma tarefa backend em andamento apos o fechamento operacional da M-11A.
 
 ## Proximas Tarefas
 
 - [ ] Rodar validadores de seguranca antes de auth sensivel novo, uploads, policies RLS finais, push, cancelamento ou dados pessoais novos do motoboy.
 - [ ] Rodar validadores de performance antes de cron, queries de dashboard, realtime, push e polling/listas grandes.
-- [ ] Fechar operacionalmente a M-11A com deploy backend-first e smoke pos-deploy.
+- [ ] Planejar a proxima fatia pequena somente leitura com gates antes de qualquer codigo.
 - [ ] Especificar pipeline de Storage com signed URLs somente com Security Validator por LGPD/PII.
 
 ## Concluido
@@ -90,6 +90,7 @@ M-11A backend implementada e validada localmente; commit, push, deploy e smoke p
 - [x] M-10A backend implementada e validada localmente: servico `realtime-broadcast` emite `delivery.created`, `delivery.accepted` e `delivery.status_changed` via Supabase Realtime Broadcast privado, best-effort, payload por whitelist e logs sem PII; `delivery.service` emite apenas apos sucesso real e nao em caminhos idempotentes sem mudanca; migration adiciona policies de `select` em `realtime.messages` para `delivery:available` e `delivery:<uuid>`, sem policy de insert para `authenticated`. Gates Camisa10, Cetico, ImpactValidator, SecurityValidator, PerformanceValidator e TestEngineer usados; backend `typecheck`, `test` (236), `lint`, `build` e `git diff --check` passaram.
 - [x] M-10A backend publicado e validado em producao: commit `0c2c8e7c8b2849db947a1baa05fdf2c5622b7db6` em `origin/main`; Vercel/GitHub `success`; migration/policies remotas confirmadas em `realtime.messages`, sem grants/policies de escrita para `authenticated`/`anon`, `supabase_realtime` sem tabelas; smoke publico e autenticado confirmou `/api/health` 200, rotas protegidas 401, broadcasts `delivery.created`/`delivery.accepted`, payload minimo e cleanup completo.
 - [x] M-11A backend implementada e validada localmente: `GET /api/admin/insights` ganhou `delivery_counts_by_status` e `payment_counts { paid, pending }`, usando contagens fixas `select('id', { count: 'exact', head: true })` em `delivery_requests` por status e `payments` por `paid=true/false`. Sem query params novos, sem listas, sem IDs de entregas/pagamentos, sem campos sensiveis e sem SQL/migration. Backend `typecheck`, `test` (239), `lint`, `build` e `git diff --check` passaram.
+- [x] M-11A backend publicado e validado em producao: commit `dda542abbbac0353cbfd78dd2fdbec47101d8de2` em `origin/main`; Vercel/GitHub `success` e `Deployment has completed`; smoke publico confirmou `/api/health` `200` e `/api/admin/insights` sem token `401 AUTH_REQUIRED`; smoke autenticado confirmou admin ativo recebendo campos antigos mais `delivery_counts_by_status` e `payment_counts`, query proibida `limit=10` com `VALIDATION_ERROR`, nao-admin com `FORBIDDEN_ROLE`, payload sem campos proibidos e cleanup `delivery=0 payment=0 store=0 domain=0`.
 
 ## Bloqueios
 
@@ -105,5 +106,5 @@ M-11A backend implementada e validada localmente; commit, push, deploy e smoke p
 **Build:** passando em backend e frontend
 **Lint:** passando em backend e frontend
 **Testes:** passando no backend e frontend (M-11A backend: 239 testes; frontend correlato: 110 testes)
-**Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first, M-08 UI, M-09A, M-09B, M-09C e M-10A validadas em producao
+**Deploy:** frontend e backend publicados em Vercel; Fatia 4C, M-07, M-08 backend-first, M-08 UI, M-09A, M-09B, M-09C, M-10A e M-11A validadas em producao
 **Riscos abertos:** 4
